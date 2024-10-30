@@ -3,4 +3,4 @@ a showcase of various interests. laboratory setting, not production. typos. more
 
 ## about me
 
-i'm a quantitative researcher and former research scientist. 
+i'm a quantitative researcher in equity l/s, formerly worked as a lab research scientist. 
