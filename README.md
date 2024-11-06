@@ -1,5 +1,5 @@
 # lab
-a showcase of various interests. laboratory setting, not production. typos.
+various interests. laboratory setting, not production. typos.
 
 ## about me
 
