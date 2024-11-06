@@ -16,3 +16,5 @@ __gloves__ -- a super thin package that one could import to help with grabbing b
 __optimization__ -- some different types of portfolio optimization. simple MVO and Black-Litterman (both single-period) with derivations and explanations.
 
 __options__ -- messing around with Black-Scholes. derivation and basic pricing. not my wheelhouse but good applied math / programming / pricing.
+
+__thinkg_i_like__ -- self explanatory. working on filling this out over time.
