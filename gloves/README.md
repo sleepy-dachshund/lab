@@ -8,6 +8,9 @@ pull the repo and navigate to outer "gloves" directory. "pip install ."
 
 ## example
 import gloves as gv
+
 yd = gv.YahooData(start_date='2020-01-01', end_date=datetime.datetime.today(), ticker_list=['AAPL', 'SPY'])
+
 prices = yd.get_prices(price_type='Adj Close')
+
 returns = yd.get_returns()
