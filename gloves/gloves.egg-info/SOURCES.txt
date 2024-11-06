@@ -1,0 +1,8 @@
+setup.py
+gloves/__init__.py
+gloves/market_data.py
+gloves.egg-info/PKG-INFO
+gloves.egg-info/SOURCES.txt
+gloves.egg-info/dependency_links.txt
+gloves.egg-info/requires.txt
+gloves.egg-info/top_level.txt
