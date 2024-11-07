@@ -108,7 +108,7 @@ class StockBetaCalculator:
 
 # Example usage
 if __name__ == "__main__":
-    ticker = "NVDA"
+    ticker = "CAT"
     region = "US"
 
     sbc = StockBetaCalculator(ticker=ticker, region=region,
