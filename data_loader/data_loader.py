@@ -1,6 +1,6 @@
-from utils_loader import *
-
 """
+    Author: Bruce McNair
+
     This is a data pipeline that fetches historical and live data for a given date, compares it to existing data, and
     appends it to a CSV file. The pipeline is designed to be run daily, and the input date is expected to a business day.
     
@@ -12,6 +12,8 @@ from utils_loader import *
     If you need data for testing, you can use the data_gen.py script in this repo 
     to generate data for the required dates.
 """
+
+from utils_loader import *
 
 
 class EncoderPipeline:

@@ -1,3 +1,10 @@
+"""
+    Author: Bruce McNair
+
+    This is a simple script to generate synthetic data for testing something like data_loader.py.
+    The script generates data for a given number of business days, with a specified number of unique identifiers.
+"""
+
 import os
 import datetime
 import zipfile

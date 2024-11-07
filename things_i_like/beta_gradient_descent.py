@@ -1,3 +1,13 @@
+"""
+    Author: Bruce McNair
+
+    This is a script to calculate the beta of a stock -- but truly from scratch, using gradient descent to fit
+    a model, minimizing sum of squared errors, finding the optimal beta coefficient.
+
+    The script uses the yfinance library to fetch historical stock and index prices.
+    It will validate the calculated beta vs. the sklearn LinearRegression model and the beta pulled from yfinance.
+"""
+
 import yfinance as yf
 import numpy as np
 import datetime
