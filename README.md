@@ -1,6 +1,8 @@
 # lab
 various interests. laboratory setting, not production. typos.
 
+disclaimer: no research per se in here. haven't found a satisfying way to share that work in GitHub yet. open to suggestions. this is all tangential though.
+
 ## about me
 
 i'm a quantitative researcher in equity l/s, formerly worked as a lab research scientist. 
