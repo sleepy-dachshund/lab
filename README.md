@@ -9,9 +9,11 @@ i'm a quantitative researcher in equity l/s, formerly worked as a lab research s
 
 ## table of contents
 
-__data_gen__ -- simple synthetic data generator. meant to replicate what you might see from a third party vendor. outputs a directory of .csv and .zip files with simulated data. run once and you have some synth data to mess with.
+__data_pipeline__:
 
-__data_loader__ -- the kind of code you'd build to import & process the synth data from data_gen.py, appending new daily data to an existing local file.
+-- __data_gen__ -- simple synthetic data generator. meant to replicate what you might see from a third party vendor. outputs a directory of .csv and .zip files with simulated data. run once and you have some synth data to mess with.
+
+-- __data_loader__ -- the kind of code you'd build to import & process the synth data from data_gen.py, appending new daily data to an existing local file.
 
 __gloves__ -- a super thin package that one could import to help with grabbing basic price/volume data. this is not recommended for serious research, it's yfinance. but it's useful for basic stuff.
 
