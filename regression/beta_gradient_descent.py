@@ -4,6 +4,9 @@
     This is a script to calculate the beta of a stock -- but truly from scratch, using gradient descent to fit
     a model, minimizing sum of squared errors, finding the optimal beta coefficient.
 
+    This is an example where analytical solution (X^T * X)^-1 * X^T * y is perfectly fine given the size of the data,
+    but we're using gradient descent for illustrative purposes.
+
     The script uses the yfinance library to fetch historical stock and index prices.
     It will validate the calculated beta vs. the sklearn LinearRegression model and the beta pulled from yfinance.
 """
