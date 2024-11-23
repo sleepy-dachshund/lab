@@ -9,7 +9,7 @@
     3. Factor Covariance Matrix
     4. Alpha Volatilities
 
-    can use gen_random_data() to test the Risk Model class
+    can use gen_random_data() to test
 """
 
 import pandas as pd
@@ -234,7 +234,7 @@ def gen_random_data(num_names=1500, random_seed=252):
     np.random.seed(random_seed)
 
     # 1. Portfolio Holdings
-    tickers = [f'TKR{i:04}' for i in range(num_names)]
+    tickers = [f'ticker{i:04}' for i in range(num_names)]
     dates = pd.date_range(end=pd.Timestamp.today().normalize(), periods=2, freq='B')
     df_port = pd.DataFrame({
         'date': dates[0],
@@ -284,18 +284,6 @@ def gen_random_data(num_names=1500, random_seed=252):
 if __name__ == '__main__':
     # generate random example data
     df_port, df_factor_loadings, df_factor_covar, df_alpha_vols = gen_random_data(random_seed=832)
-
-    # # could import example from excel -- just note that the dataframes must be in the correct format
-    # df_port = pd.read_excel('risk_model_example.xlsx', sheet_name='import_holdings')
-    # df_factor_loadings = pd.read_excel('risk_model_example.xlsx', sheet_name='import_factor_loadings')
-    # df_factor_covar = pd.read_excel('risk_model_example.xlsx', sheet_name='import_factor_covar')
-    # df_alpha_vols = pd.read_excel('risk_model_example.xlsx', sheet_name='import_alpha_vols')
-    #
-    # df_factor_covar.set_index('factor_covar_matrix', inplace=True)
-    # df_factor_loadings = df_factor_loadings.melt(id_vars=['date', 'ticker', 'factor_model'],
-    #                                              value_vars=[col for col in df_factor_loadings.columns if
-    #                                                          col not in ['date', 'ticker', 'factor_model']],
-    #                                              var_name='factor', value_name='loading')
 
     # ================================================
     #               Portfolio Risk Model
