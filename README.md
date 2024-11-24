@@ -23,6 +23,10 @@ __optimization__:
 
 some different types of portfolio optimization. simple MVO and Black-Litterman (both single-period) with derivations and explanations.
 
+__port_con__:
+
+some scripts focused on portfolio construction, detailing the risk contributions of a portfolio using factor models.
+
 __regression__: 
 
 some notes on regressions and examples.
