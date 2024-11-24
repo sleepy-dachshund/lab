@@ -137,4 +137,4 @@ if __name__ == "__main__":
     print(f"Sklearn Beta (5y daily): {round(sbc.beta_sklearn, 3)}")
     print(f"YFinance Beta (5y monthly): {sbc.beta_yfinance}")
 
-
+    # note monthly beta removes earnings season noise
