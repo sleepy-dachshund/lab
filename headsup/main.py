@@ -11,7 +11,7 @@ import numpy as np
 
 def main():
     # Params
-    pull_fresh_data = False
+    pull_fresh_data = True
     etf_universe = 'SPY'
     select_symbols = UNIVERSE['stocks']
 
