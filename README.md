@@ -19,6 +19,10 @@ __gloves__:
 
 a super thin package that one could import to help with grabbing basic price/volume data. this is not recommended for serious research, it's yfinance. but it's useful for basic stuff.
 
+__headsup__:
+
+a package to automate a daily email. pulls price/volume/financial data from API, summarizes index & basket characteristics, and screens for ideas.
+
 __optimization__:
 
 some different types of portfolio optimization. simple MVO and Black-Litterman (both single-period) with derivations and explanations.
