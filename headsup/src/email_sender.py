@@ -1,7 +1,7 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from headsup.config.settings import SETTINGS
+from config.settings import SETTINGS
 
 
 class EmailSender:
