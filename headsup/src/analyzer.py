@@ -83,23 +83,50 @@ class StockAnalyzer:
             df = etf_df.copy()
 
             for col in self.summary_cols:
-                # Clip outliers
+                # Clip outliers of pre-defined columns
                 df[col] = df[col].clip(
-                    lower=df[col].quantile(0.02),
-                    upper=df[col].quantile(0.98)
+                    lower=df[col].quantile(0.05),
+                    upper=df[col].quantile(0.95)
                 )
 
-            # Weighted sums
+            # Initiate row
             row = pd.DataFrame(index=[name])
             row['Names'] = df.shape[0]
-            for col in [
-                'pe_trailing', 'pe_forward', 'fcf_yield',
-                'pb_trailing', 'ps_trailing', 'revenue_growth',
-                'earnings_growth', 'roa', 'roe', 'roic', 'roic_fi',
-                'gross_margin', 'operating_margin', 'profit_margin',
-                'fcf_margin'
-            ]:
-                row[col] = (df[col].fillna(0 if 'yield' in col else 99) * df['weight']).sum()
+
+            # Calculate the aggregate index sums
+            total_mcap = df['market_cap'].sum() if df['market_cap'].max() < 1e9 else df['market_cap'].sum() / 1e9
+            total_ni = df['net_income'].sum()  # trailing earnings
+            total_rev = df['revenue'].sum()
+            total_equity = df['shareholder_equity'].sum()
+            total_fcf = df['fcf'].sum()
+
+            row['pe_trailing'] = (
+                total_mcap / total_ni if total_ni > 0 else np.nan
+            )
+            row['fcf_yield'] = (
+                total_fcf / total_mcap if total_mcap > 0 else np.nan
+            )
+            row['pb_trailing'] = (
+                total_mcap / total_equity if total_equity > 0 else np.nan
+            )
+            row['ps_trailing'] = (
+                total_mcap / total_rev if total_rev > 0 else np.nan
+            )
+
+            # Calculate weighted sums
+            row['pe_forward'] = (
+                    df['pe_forward'].fillna(99) * df['weight']
+            ).sum()
+            row['revenue_growth'] = (
+                    df['revenue_growth'].fillna(0) * df['weight']
+            ).sum()
+            row['earnings_growth'] = (
+                    df['earnings_growth'].fillna(0) * df['weight']
+            ).sum()
+
+            for col in ['roa', 'roe', 'roic', 'roic_fi',
+                        'gross_margin', 'operating_margin', 'profit_margin', 'fcf_margin']:
+                row[col] = (df[col].fillna(0) * df['weight']).sum()
 
             row['over50dma'] = (df['price'] > df['50dma']).mean()
             row['over200dma'] = (df['price'] > df['200dma']).mean()
