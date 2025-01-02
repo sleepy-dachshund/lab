@@ -12,17 +12,17 @@ import numpy as np
 def main():
     # Params
     pull_fresh_data = True
-    etf_universe = 'SPY'
+    etf_list = UNIVERSE['major_indices'] + UNIVERSE['sector_etfs']
     select_symbols = UNIVERSE['stocks']
 
     # Fetch data from AV API
     fetcher = DataFetcher(additional_symbols=select_symbols)
-    overviews, prices, financials, data, etf_dict = fetcher.fetch_all_data(etf=etf_universe,
+    overviews, prices, financials, data, etf_dict = fetcher.fetch_all_data(etf_list=etf_list,
                                                                            read_cache=(not pull_fresh_data))
 
     # Analyze data
     analyzer = StockAnalyzer(overviews=overviews, data=data, prices=prices, financials=financials, etf_dict=etf_dict,
-                             selected_symbols=select_symbols, add_top_sector_mcaps=True, screen_count=20)
+                             selected_symbols=select_symbols, add_top_sector_mcaps=True, screen_count=50)
     index_characteristics, index_returns = analyzer.calculate_index_stats()
     analyzer.grab_select_characteristics()
     select_returns = analyzer.grab_select_returns()

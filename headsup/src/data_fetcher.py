@@ -3,7 +3,7 @@ import numpy as np
 import requests
 from datetime import datetime
 import time
-# from ..config.settings import SETTINGS
+from config.universe import UNIVERSE
 import os
 from dotenv import load_dotenv
 from tqdm import tqdm
@@ -16,6 +16,8 @@ class DataFetcher:
         self.api_key = os.getenv('VANTAGE_API_KEY')
         self.rpm = int(os.getenv('VANTAGE_RPM'))
         self.base_url = 'https://www.alphavantage.co/query'
+
+        self.start_date = '2017-01-01'
 
         self.master_ticker_list = []
 
@@ -72,12 +74,17 @@ class DataFetcher:
 
         return self.etf_dict, self.master_ticker_list
 
-    def get_headsup_universe(self, etf: str = 'SPY'):
-        """Choose some ETF as the base for the headsup universe."""
-        self.headsup_universe = self.etf_dict[etf]['symbol'].tolist()
+    def get_headsup_universe(self, etf_list: list = None):
+        """Choose some ETF(s) as the base for the headsup universe."""
+        if etf_list is None:
+            etf_list = ['SPY']
+
+        for etf in etf_list:
+            self.headsup_universe += self.etf_dict[etf]['symbol'].tolist()
         for ticker in self.symbols:
             if ticker not in self.headsup_universe:
                 self.headsup_universe += [ticker]
+        self.headsup_universe = list(set(self.headsup_universe))
         return self.headsup_universe
 
     def fetch_company_overviews(self, symbols: list = None):
@@ -171,6 +178,7 @@ class DataFetcher:
             'net_income': pd.to_numeric(df['netIncome'], errors='coerce'),
         })
         financials.index = pd.to_datetime(df['fiscalDateEnding'])
+        financials = financials.loc[financials.index >= self.start_date]
         return financials
 
     def fetch_quarterly_financials_bs(self, symbols: list = None):
@@ -227,6 +235,7 @@ class DataFetcher:
         })
 
         financials.index = pd.to_datetime(df['fiscalDateEnding'])
+        financials = financials.loc[financials.index >= self.start_date]
         return financials
 
     def fetch_quarterly_financials_cf(self, symbols: list = None):
@@ -254,6 +263,7 @@ class DataFetcher:
         })
 
         financials.index = pd.to_datetime(df['fiscalDateEnding'])
+        financials = financials.loc[financials.index >= self.start_date]
         return financials
 
     def _fetch_data(self, symbols: list = None, function: str = None, desc: str = None, result_attr: str = None,
@@ -319,6 +329,8 @@ class DataFetcher:
                 volumes_df = pd.DataFrame({symbol: data[1] for symbol, data in all_data.items()})
                 prices_df.index = pd.to_datetime(prices_df.index)
                 volumes_df.index = pd.to_datetime(volumes_df.index)
+                prices_df = prices_df.loc[prices_df.index >= self.start_date]
+                volumes_df = volumes_df.loc[volumes_df.index >= self.start_date]
 
                 self.prices_tuple = (prices_df, volumes_df)
 
@@ -338,6 +350,7 @@ class DataFetcher:
                 financials_df = financials_df.set_index(['fiscalDateEnding', 'symbol'])
                 financials_df.index.names = ['fiscalDateEnding', 'symbol']
                 financials_df.reset_index(drop=False, inplace=True)
+                financials_df = financials_df.loc[financials_df['fiscalDateEnding'] >= self.start_date]
                 for col in financials_df.columns:
                     if 'level_' in col:
                         financials_df = financials_df.drop(columns=[col])
@@ -357,6 +370,7 @@ class DataFetcher:
             self.financials = self.financials.merge(self.financials_cf, on=['fiscalDateEnding', 'symbol'],
                                                        how='outer', suffixes=('', '_cf'))
             self.financials.drop_duplicates(subset=['fiscalDateEnding', 'symbol'], inplace=True)
+            self.financials = self.financials.loc[self.financials['fiscalDateEnding'] >= self.start_date]
             self.financials.reset_index(drop=True, inplace=True)
             return self.financials
         else:
@@ -437,7 +451,7 @@ class DataFetcher:
         # Use merge_asof to align financial data based on the closest date
         self.data = pd.merge_asof(self.data, self.financials, on='date', by='symbol', direction='backward')
         self.data = self.overviews.loc[:, ['symbol', 'sector']].merge(self.data, how='left', on='symbol', validate='1:m')
-
+        self.data = self.data.loc[self.data.date >= self.start_date]
         self.data.sort_values(['date', 'symbol'], inplace=True)
 
     def calc_additional_data(self):
@@ -445,8 +459,8 @@ class DataFetcher:
         self.data['market_cap'] = self.data['price'] * self.data['shares_out']
         self.data['roa'] = self.data['net_income'] / self.data['assets']
         self.data['roe'] = self.data['net_income'] / self.data['shareholder_equity']
-        self.data['roic'] = self.data['nopat'] / np.where(self.data['invested_capital_op'] == 0, 1, self.data['invested_capital_op'])
-        self.data['roic_fi'] = self.data['nopat'] / np.where(self.data['invested_capital_fi'] == 0, 1, self.data['invested_capital_fi'])
+        self.data['roic'] = self.data['nopat'] / np.where(self.data['invested_capital_op'] == 0, np.nan, self.data['invested_capital_op'])
+        self.data['roic_fi'] = self.data['nopat'] / np.where(self.data['invested_capital_fi'] == 0, np.nan, self.data['invested_capital_fi'])
         self.data['gross_margin'] = self.data['gross_profit'] / self.data['revenue']
         self.data['operating_margin'] = self.data['operating_income'] / self.data['revenue']
         self.data['net_margin'] = self.data['net_income'] / self.data['revenue']
@@ -478,21 +492,22 @@ class DataFetcher:
         self.financials = pd.read_pickle(f'{file_path}financials.pkl')
         self.prices = pd.read_pickle(f'{file_path}prices.pkl')
         self.data = pd.read_pickle(f'{file_path}data.pkl')
-        for etf in ['IWV', 'SPY', 'QQQ', 'VUG', 'SMH', 'SPSM', 'IWM', 'DUHP', 'DFLV', 'DFAT', 'DFSV']:
+        for etf in UNIVERSE['major_indices'] + UNIVERSE['sector_etfs']:
             try:
                 self.etf_dict[etf] = pd.read_excel(f'{file_path}{etf}.xlsx')
             except FileNotFoundError:
                 continue
 
-    def fetch_all_data(self, etf: str = 'SPY', read_cache: bool = False):
+    def fetch_all_data(self, etf_list: list = None, read_cache: bool = False):
         """Fetches and processes all data."""
         if read_cache:
             self.read_data()
             return self.overviews, self.prices, self.financials, self.data, self.etf_dict
         else:
-            self.fetch_etf_constituents()
-            self.get_headsup_universe(etf=etf)
+            self.fetch_etf_constituents(etf_list=etf_list)
+            self.get_headsup_universe(etf_list=etf_list)
             self.fetch_company_overviews(symbols=self.headsup_universe)
+            # todo: map 'sector' col to UNIVERSE['sector_etfs'] constituents
             self.fetch_daily_prices(symbols=self.headsup_universe)
             self.fetch_quarterly_financials_is(symbols=self.headsup_universe)
             self.fetch_quarterly_financials_bs(symbols=self.headsup_universe)

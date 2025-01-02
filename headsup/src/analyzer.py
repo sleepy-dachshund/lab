@@ -81,12 +81,14 @@ class StockAnalyzer:
         """Calculate index characteristics and returns for SPY and SPY ex-top 10."""
         def calc_index_characteristics(etf_df: pd.DataFrame, name: str) -> pd.DataFrame:
             df = etf_df.copy()
+
             for col in self.summary_cols:
                 # Clip outliers
                 df[col] = df[col].clip(
                     lower=df[col].quantile(0.02),
                     upper=df[col].quantile(0.98)
                 )
+
             # Weighted sums
             row = pd.DataFrame(index=[name])
             row['Names'] = df.shape[0]
@@ -245,7 +247,7 @@ class StockAnalyzer:
         # Final screener
         bogey_tracker = bogey_tracker.sort_values(['score', 'market_cap'], ascending=[False, False]).head(self.screen_count)
         keep_cols = [
-            'symbol', 'sector', 'score', 'score_cash_flow', 'score_valuation', 'score_other',
+            'symbol', 'name', 'sector', 'score', 'score_cash_flow', 'score_valuation', 'score_other',
             'price', 'market_cap', 'analyst_score', 'hit_rate_percentile', 'description'
         ] + self.summary_cols
         bogey_tracker = bogey_tracker[keep_cols]
