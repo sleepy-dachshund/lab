@@ -17,6 +17,12 @@ class EmailSender:
         html_part = MIMEText(html_content, 'html')
         msg.attach(html_part)
 
+        # attached local .pdf file to email
+        with open('screener_details.pdf', 'rb') as f:
+            pdf_part = MIMEText(f.read(), 'base64', 'pdf')
+            pdf_part.add_header('Content-Disposition', 'attachment', filename='report.pdf')
+            msg.attach(pdf_part)
+
         try:
             with smtplib.SMTP(self.settings['smtp_server'], self.settings['smtp_port']) as server:
                 server.starttls()
