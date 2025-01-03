@@ -14,6 +14,9 @@ HeadsUp is a project designed for quantitative stock analysis. It automates the 
 - **Analysis**:
   - Calculates key financial metrics and stock characteristics.
   - Screens stocks for better-than-market characteristics.
+- **Plotting**:
+  - Plots returns, growth & valuation comps, and financial metrics.
+  - Returns PDF with one detail page for each stock screened.
 - **Report Generation**:
   - Creates an HTML report summarizing market trends and screened stocks.
 - **Visualization**:
@@ -93,8 +96,8 @@ pip install -r requirements.txt
 
 ## Future Improvements
 
-- Enhance plotting functionality in `plotter.py`.
 - Enhance speed of data pull via API calls. Work with Alpha Vantage on improved methods.
+- Add ChatGPT API call -- add text to PDF, brief summary of each company screened.
 - Add unit tests for key modules.
 - Improve error handling in data fetching and API calls.
 - Include support for additional data sources.
