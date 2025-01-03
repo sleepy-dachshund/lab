@@ -3,9 +3,10 @@ import pandas as pd
 
 
 class ReportGenerator:
-    def __init__(self, ic, ir, sc, sr, screener, screener_desc):
+    def __init__(self, ic, ir, sectors, sc, sr, screener, screener_desc):
         self.index_characteristics = ic
         self.index_returns = ir
+        self.sector_characteristics = sectors
         self.select_characteristics = sc
         self.select_returns = sr
         self.screener = screener
@@ -25,6 +26,9 @@ class ReportGenerator:
         
         <h3>Market Characteristics</h3>
         {self.index_characteristics.to_html(float_format=lambda x: '%.2f' % x)}
+        
+        <h3>Sector Characteristics</h3>
+        {self.sector_characteristics.to_html(float_format=lambda x: '%.2f' % x)}
         
         <h3>Select Characteristics</h3>
         {self.select_characteristics.to_html(float_format=lambda x: '%.2f' % x)}
