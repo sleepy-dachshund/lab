@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from config.universe import UNIVERSE
 
 
 class StockAnalyzer:
@@ -49,6 +50,7 @@ class StockAnalyzer:
         # Outputs
         self.index_characteristics = pd.DataFrame()
         self.index_returns = pd.DataFrame()
+        self.sector_characteristics = pd.DataFrame()
         self.select_characteristics = pd.DataFrame()
         self.select_returns = pd.DataFrame()
         self.screener = pd.DataFrame()
@@ -140,12 +142,38 @@ class StockAnalyzer:
         spyx10 = spy.sort_values('market_cap', ascending=False).iloc[10:].copy()
         spyx10['weight'] /= spyx10['weight'].sum()
 
-        # Summaries
+        # S&P Summaries
         spy_stats = calc_index_characteristics(spy, 'SPY')
         spyx10_stats = calc_index_characteristics(spyx10, 'SPYx10')
         self.index_characteristics = pd.concat([spy_stats, spyx10_stats], axis=0).T
 
-        # Returns
+        # Sector ETF Summaries
+        sector_maps = {'XLC': 'Communication Services',
+                       'XLY': 'Consumer Discretionary',
+                       'XLP': 'Consumer Staples',
+                       'XLE': 'Energy',
+                       'XLF': 'Financials',
+                       'XLV': 'Health Care',
+                       'XLI': 'Industrials',
+                       'XLB': 'Materials',
+                       'XLRE': 'Real Estate',
+                       'XLK': 'Technology',
+                       'XLU': 'Utilities'}
+
+        self.sector_characteristics = pd.DataFrame()
+        for sector_etf in UNIVERSE['sector_etfs']:
+            sector_etf_df = self.etf_dict[sector_etf].merge(self.overviews, on='symbol', how='left', suffixes=('', '_ovr')).copy()
+            sector_etf_df = sector_etf_df.merge(self.data_last, on='symbol', how='left', suffixes=('', '_data'))
+            sector_etf_df['weight'] /= sector_etf_df['weight'].sum()
+            sector_etf_stats = calc_index_characteristics(sector_etf_df, sector_etf)
+            sector_etf_stats['name'] = sector_maps[sector_etf]
+            sector_etf_stats.reset_index(drop=False, inplace=True)
+            sector_etf_stats.rename(columns={'index': 'symbol'}, inplace=True)
+            self.sector_characteristics = pd.concat([self.sector_characteristics, sector_etf_stats], axis=0)
+        self.sector_characteristics.sort_values('Names', ascending=False, inplace=True)
+        self.sector_characteristics.reset_index(drop=True, inplace=True)
+
+        # S&P Returns
         spy_rets = self.prices[self.prices['symbol'] == 'SPY'].copy()
         spy_rets = spy_rets.sort_values('date', ascending=False).reset_index(drop=True)
         last_price = spy_rets['price'].iloc[0]
@@ -158,7 +186,7 @@ class StockAnalyzer:
         idx_ret['z_63d'] = idx_ret['ret_63d'] / (idx_ret['vol_252d'] / np.sqrt(63))
         self.index_returns = idx_ret.T
 
-        return self.index_characteristics, self.index_returns
+        return self.index_characteristics, self.index_returns, self.sector_characteristics
 
     def grab_select_characteristics(self):
         """Retrieve key characteristics for selected stocks."""
@@ -216,15 +244,14 @@ class StockAnalyzer:
             'profit_margin', 'fcf_margin'
         ]
         valuation = ['pe_trailing', 'pe_forward', 'pb_trailing', 'ps_trailing']
-        other = ['over50dma', 'over200dma', 'analyst_score', 'hit_rate_percentile']
+        other = ['50over200dma', 'analyst_score', 'hit_rate_percentile']
 
         # Bogeys from index stats
         bx = self.index_characteristics.T.copy()
         bogeys = {k: bx[k].min() for k in valuation}
         bogeys.update({k: bx[k].max() for k in cash_flow})
-        bogeys.update({'over50dma': True,
-                       'over200dma': True,
-                       'analyst_score': 0.1,
+        bogeys.update({'50over200dma': True,
+                       'analyst_score': 0.5,
                        'hit_rate_percentile': 0.667})
 
         # Hits vs bogeys
@@ -233,10 +260,8 @@ class StockAnalyzer:
                 bogey_tracker[f'{col}_bogey'] = bogey_tracker[col] > bgy
             elif col in valuation:
                 bogey_tracker[f'{col}_bogey'] = bogey_tracker[col] < bgy
-            elif col == 'over50dma':
-                bogey_tracker['over50dma_bogey'] = bogey_tracker['price'] > bogey_tracker['50dma']
-            elif col == 'over200dma':
-                bogey_tracker['over200dma_bogey'] = bogey_tracker['price'] > bogey_tracker['200dma']
+            elif col == '50over200dma':
+                bogey_tracker['50over200dma_bogey'] = bogey_tracker['50dma'] > bogey_tracker['200dma']
             elif col == 'hit_rate_percentile':
                 bogey_tracker['hit_rate_percentile_bogey'] = bogey_tracker['hit_rate_percentile'] > bgy
 
