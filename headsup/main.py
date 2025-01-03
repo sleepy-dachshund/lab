@@ -11,7 +11,7 @@ import numpy as np
 
 def main():
     # Params
-    pull_fresh_data = True
+    pull_fresh_data = False
     etf_list = UNIVERSE['major_indices'] + UNIVERSE['sector_etfs']
     select_symbols = UNIVERSE['stocks']
 
@@ -23,17 +23,21 @@ def main():
     # Analyze data
     analyzer = StockAnalyzer(overviews=overviews, data=data, prices=prices, financials=financials, etf_dict=etf_dict,
                              selected_symbols=select_symbols, add_top_sector_mcaps=True, screen_count=50)
-    index_characteristics, index_returns = analyzer.calculate_index_stats()
+    index_characteristics, index_returns, sector_characteristics = analyzer.calculate_index_stats()
     analyzer.grab_select_characteristics()
     select_returns = analyzer.grab_select_returns()
     screener, screener_desc, select_characteristics = analyzer.screen_stocks()
 
-    # # Plot data
-    # plotter = StockPlotter(data, prices)
+    # Plot data
+    plotter = StockPlotter(screener.symbol.unique().tolist()[0:25],
+                           data, prices, financials, overviews, screener, sector_characteristics,
+                           etf_dict, UNIVERSE)
+    plotter.save_plots()  # Save plots to local directory
 
     # Generate report
     report_gen = ReportGenerator(ic=index_characteristics,
                                  ir=index_returns,
+                                 sectors=sector_characteristics,
                                  sc=select_characteristics,
                                  sr=select_returns,
                                  screener=screener,
