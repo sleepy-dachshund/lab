@@ -29,10 +29,10 @@ def main():
     screener, screener_desc, select_characteristics = analyzer.screen_stocks()
 
     # Plot data
-    plotter = StockPlotter(screener.symbol.unique().tolist()[0:25],
+    plotter = StockPlotter(screener.symbol.unique().tolist()[0:50],
                            data, prices, financials, overviews, screener, sector_characteristics,
                            etf_dict, UNIVERSE)
-    plotter.save_plots()  # Save plots to local directory
+    plotter.save_plots()
 
     # Generate report
     report_gen = ReportGenerator(ic=index_characteristics,

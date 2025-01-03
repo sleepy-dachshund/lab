@@ -40,6 +40,7 @@ class StockPlotter:
 
         self.ticker_start = None
         self.comp_etf = None
+        self.peers = []
 
         self.all_figs = []
 
@@ -58,6 +59,18 @@ class StockPlotter:
         if self.comp_etf is None:
             self.comp_etf = 'IWM'
 
+        # find peers
+        df = self.overviews.copy()
+        try:
+            ticker_sector = self.ticker_overview.sector.values[0]
+            df = df.loc[df.sector == ticker_sector].copy()
+        except:
+            pass
+        ticker_market_cap = self.ticker_overview['market_cap'].values[0]
+        df['mcap_diff'] = (df['market_cap'] - ticker_market_cap).abs()
+        self.peers = df.sort_values('mcap_diff').head(6).symbol.tolist()
+
+        # generate prices df
         self.df_prices = self.prices.loc[self.prices.symbol.isin([ticker, 'SPY', self.comp_etf])].copy().reset_index(drop=True)
         self.df_prices['date'] = pd.to_datetime(self.df_prices['date'])
         self.df_prices = self.df_prices.loc[self.df_prices['date'] >= self.start_date]
@@ -66,7 +79,6 @@ class StockPlotter:
         self.df_prices = self.df_prices.sort_values('date')
 
     def price_chart(self):
-        # ======= Figure 1: Plot, Price Chart w/ SPY & Sector ETF ======= #
         assert 'SPY' in self.prices.symbol.values, 'SPY not in prices'
         assert self.comp_etf in self.prices.symbol.values, f'{self.comp_etf} not in prices'
         df = self.df_prices.copy().reset_index(drop=True)
@@ -83,7 +95,6 @@ class StockPlotter:
         plt.tight_layout()
 
     def technical_chart(self, ticker):
-        # ======= Figure 2: Stock Price Chart w/ Moving Averages, RSI, & BB ======= #
         df = self.df_prices.loc[self.df_prices.symbol == ticker].copy().reset_index(drop=True)
 
         # moving averages
@@ -128,8 +139,7 @@ class StockPlotter:
 
         plt.tight_layout()
 
-    def valuation_tables(self, ticker):
-        # ======= Figure 3: Valuation Ratios Table ======= #
+    def index_comps(self, ticker):
         df = self.screener.copy()
         df = pd.concat([df, self.sectors.reset_index(drop=False).rename(columns={'ETF': 'symbol'})], axis=0)
         df = df.loc[
@@ -156,7 +166,6 @@ class StockPlotter:
             loc='center',
             colLoc='center'
         )
-        # table.scale(0.8, 1.2)
 
         x_labels = ['Valuations', 'Returns', 'Margins']
         for i, df in enumerate([dfb, dfc, dfd], start=1):
@@ -169,17 +178,21 @@ class StockPlotter:
 
         plt.tight_layout()
 
-    def peer_comparison_chart(self):
-        # ======= Figure 4: Highlights of Key Metrics vs. Peers ======= #
+    def peer_comps(self, ticker):
         df = self.data.loc[self.data.date == self.data.date.max()].copy()
         df = df.merge(self.overviews, on='symbol', how='left', validate='1:1', suffixes=('', 'overview')).copy()
-        df = df.loc[df.sector == self.ticker_overview.sector.values[0]].copy()
-        df['mcap_diff'] = (df['market_cap'] - self.ticker_overview['market_cap'].values[0]).abs()
-        df = df.sort_values('mcap_diff').head(6).copy()
+
+        # trim to peers
+        df = df.loc[df.symbol.isin(self.peers), :]
+        df_ex = df.loc[df.symbol != ticker, :]
+        df = df.loc[df.symbol == ticker, :]
+        df = pd.concat([df, df_ex], axis=0)
+
+        # prep data
         df = df.loc[:, ['symbol',
-                          'pe_trailing', 'pe_forward', 'ps_trailing', 'pb_trailing',
-                          'revenue_growth', 'earnings_growth', 'fcf_yield', 'roa', 'roe', 'roic', 'roic_fi',
-                          'gross_margin', 'operating_margin', 'profit_margin', 'fcf_margin']].copy()
+                        'pe_trailing', 'pe_forward', 'ps_trailing', 'pb_trailing',
+                        'revenue_growth', 'earnings_growth', 'fcf_yield', 'roa', 'roe', 'roic', 'roic_fi',
+                        'gross_margin', 'operating_margin', 'profit_margin', 'fcf_margin']].copy()
         dfa = df.loc[:, ['symbol', 'pe_trailing', 'pe_forward', 'ps_trailing', 'pb_trailing', ]].set_index(
             'symbol').T.copy()
         dfb = df.loc[:, ['symbol', 'revenue_growth', 'earnings_growth', 'fcf_yield', 'roa', 'roe', 'roic', 'roic_fi']].set_index('symbol').T.copy()
@@ -198,7 +211,7 @@ class StockPlotter:
             axs[i - 1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.tight_layout()
 
-    def profitability_growth_chart(self, ticker):
+    def income_statement_plot(self, ticker):
         # ======= Figure 5: Profitability & Growth Chart / Table ======= #
         df = self.ticker_financials.copy()
         df = df.loc[df.date >= self.start_date].copy()
@@ -215,7 +228,7 @@ class StockPlotter:
         ax.set_xlabel('Date')
         plt.tight_layout()
 
-    def financial_health_chart(self, ticker):
+    def balance_sheet_plot(self, ticker):
         # ======= Figure 6: Financial Health Indicators ======= #
         df = self.ticker_financials.copy()
         df = df.loc[df.date >= self.start_date].copy()
@@ -281,10 +294,10 @@ class StockPlotter:
             # Generate all plots for current ticker
             self.price_chart()
             self.technical_chart(ticker)
-            self.valuation_tables(ticker)
-            self.profitability_growth_chart(ticker)
-            self.financial_health_chart(ticker)
-            self.peer_comparison_chart()
+            self.index_comps(ticker)
+            self.peer_comps(ticker)
+            self.income_statement_plot(ticker)
+            self.balance_sheet_plot(ticker)
 
             # Collect all figures
             ticker_figs.extend([
@@ -294,6 +307,9 @@ class StockPlotter:
 
             # Combine figures into one page
             combined_fig = self.combine_figures_for_ticker(ticker_figs)
+            combined_fig.suptitle(f"{ticker}: "
+                                  f"{self.ticker_overview['name'].values[0]} "
+                                  f"\nMarket Cap ($B): {round(self.ticker_overview['market_cap'].values[0] / 1e9, 1)}", fontsize=20)
 
             # Create a temporary PDF for this ticker
             temp_pdf = io.BytesIO()
@@ -322,7 +338,8 @@ class StockPlotter:
         try:
             for ticker, temp_pdf in temp_pdfs:
                 merger.append(fileobj=temp_pdf)
-                merger.add_outline_item(title=ticker, page_number=len(merger.pages) - 1)
+                page_idx = len(merger.pages) - 1
+                merger.add_outline_item(title=f"{ticker} (Page {page_idx + 1})", page_number=page_idx)
             merger.write(output_filename)
 
         finally:
