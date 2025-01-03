@@ -19,10 +19,8 @@ HeadsUp is a project designed for quantitative stock analysis. It automates the 
   - Returns PDF with one detail page for each stock screened.
 - **Report Generation**:
   - Creates an HTML report summarizing market trends and screened stocks.
-- **Visualization**:
-  - Prepares data for stock performance plots.
 - **Email Notifications**:
-  - Sends the generated report to a predefined recipient.
+  - Sends the generated HTML report & PDF as attachment to a predefined recipient.
 
 ---
 
@@ -35,7 +33,7 @@ HeadsUp is a project designed for quantitative stock analysis. It automates the 
 - **`settings.py`**: Loads and manages project settings, including API keys and email credentials.
 - **`data_fetcher.py`**: Fetches market and financial data via the Alpha Vantage API.
 - **`analyzer.py`**: Processes and analyzes data to calculate financial metrics and screen stocks.
-- **`plotter.py`**: Prepares data for visualizations.
+- **`plotter.py`**: Generates PDF detailing screened stocks.
 - **`report_generator.py`**: Generates an HTML report summarizing analysis results.
 - **`email_sender.py`**: Sends the generated report via email.
 
@@ -79,8 +77,9 @@ pip install -r requirements.txt
    - ETF constituents, historical prices, financial statements.
 2. Analyze stocks with the `StockAnalyzer` class:
    - Key metrics and screening logic.
-3. Generate an HTML report with `ReportGenerator`.
-4. Send the report via email using `EmailSender`.
+3. Generate a PDF report with `StockPlotter`
+4. Generate an HTML report with `ReportGenerator`.
+5. Send the report via email using `EmailSender`.
 
 ---
 
@@ -101,9 +100,3 @@ pip install -r requirements.txt
 - Add unit tests for key modules.
 - Improve error handling in data fetching and API calls.
 - Include support for additional data sources.
-
----
-
-## Contact
-
-For queries, reach out to the maintainers at: [your_email@example.com].
