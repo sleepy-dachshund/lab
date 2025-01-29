@@ -10,6 +10,10 @@
         - The script will cache a .csv file of prices and a .png image of the momentum factor returns in the local directory.
         - Only very basic packages required: pandas, numpy, yfinance, matplotlib.
 
+    Caveat:
+        - This is not a complete momentum factor model, just an example.
+        - Assume any choices made are just there to illustrate that the choice exists and therefore must be studied.
+
     Notes & Improvements:
         - Find access to a more comprehensive estimation universe, sp500 alone isn't enough.
         - Make sure you have clean and accurate price & return data, yfinance isn't bad though.
