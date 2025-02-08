@@ -8,6 +8,9 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
+font_reg = 'Helvetica'
+font_bold = 'Helvetica-Bold'
+
 COLOR_DICT = {'blue1': (0, 44, 86), 'blue2': (0, 66, 128), 'blue3': (43, 151, 255),
               'orange1': (255, 102, 50), 'orange2': (153, 39, 0), 'orange3': (229, 58, 0),
               'gold1': (195, 148, 40), 'gold2': (97, 74, 20), 'gold3': (146, 111, 30),
@@ -61,7 +64,7 @@ class PDFReport:
             content_fn(self.c, self.width, self.height)
         self.c.showPage()
 
-    def add_header(self, text, banner_height=35, font='Helvetica-Bold', font_size=16, fill_color=blue1):
+    def add_header(self, text, banner_height=35, font=font_bold, font_size=16, fill_color=blue1):
         """
         draw header at top center
         :param text:
@@ -88,7 +91,7 @@ class PDFReport:
 
         self.c.drawString(x_text, y_text, text)
 
-    def add_footer(self, text, y_offset=20, font='Helvetica', font_size=10, fill_color=blue1):
+    def add_footer(self, text, y_offset=20, font=font_reg, font_size=10, fill_color=blue1):
         """
         draw a footer at bottom center
         :param text:
@@ -178,6 +181,10 @@ class PDFReport:
         # merge cells for repeated multi-index values and shade in grey
         if isinstance(df.index, pd.MultiIndex):
             n_index = len(df.index.names)
+
+            # make every cell in the first n_index columns bold
+            style.add('FONTNAME', (0, 0), (n_index - 1, -1), font_bold)
+
             # for each index column, scan the table rows and merge cells with same value
             for col in range(n_index):
                 start_row = 1
@@ -234,6 +241,34 @@ class PDFReport:
         self.c.save()
 
 
+def content_fn_plot_table(c, width, height):
+    page_width = width - 100
+    plot_height = 300
+    bottom_plot = height - plot_height - 50
+
+    pdf.add_matplotlib_figure(fig, x=50, y=bottom_plot, width=page_width, height=plot_height)
+    col_widths = [page_width / len(simple_df.columns)] * len(simple_df.columns)
+    pdf.add_table(simple_df, x=50, y=bottom_plot - 50, col_widths=col_widths)
+
+
+def content_fn_table_only(c, width, height):
+    dynamic_rules = get_dynamic_rules(multi_df, 3)  # note column_idx is inclusive of index columns
+    config = {
+        'merged_cells': [((0, 0), (1, 0))],
+        'conditional_format': [
+                                  {'cells': (1, 1), 'bg_color': colors.lightgrey, 'text_color': red1},
+                                  {'cells': (2, 2), 'bg_color': red3, 'text_color': blue1}
+                              ] + dynamic_rules,
+        'general_style': [
+            ('FONTSIZE', (0, 0), (-1, -1), 10)
+        ]
+    }
+    page_width = width - 100
+    num_cols = len(multi_df.columns) + len(multi_df.index.names)
+    col_widths = [page_width / num_cols] * num_cols
+    pdf.add_table(multi_df, x=50, y=height - 100, config=config, col_widths=col_widths)
+
+
 def content_fn_grid(c, width, height):
     # layout params
     margin_top, margin_bottom = 50, 50
@@ -258,7 +293,8 @@ def content_fn_grid(c, width, height):
         # can add more items as needed, just update n_rows * n_cols
     ]
     if len(items) > n_rows * n_cols:
-        raise ValueError(f"Too many items for the grid layout in content_fn_grid(): {len(items)} items but only {n_rows} * {n_cols} cells available.")
+        raise ValueError(
+            f"Too many items for the grid layout in content_fn_grid(): {len(items)} items but only {n_rows} * {n_cols} cells available.")
 
     for idx, item in enumerate(items):
         row = idx // n_cols
@@ -345,11 +381,7 @@ def get_dynamic_rules(df: pd.DataFrame, column_idx: int):
 
 
 if __name__ == "__main__":
-    # example usage below -- will create 'sample_report.pdf' in the current directory
-
-    '''
     # ========== CREATE SAMPLE DATA ========== #
-    '''
 
     # create simple dataframe
     simple_df = pd.DataFrame({
@@ -374,82 +406,50 @@ if __name__ == "__main__":
     ax.set_title('Sample Line Plot')
     ax.legend()
 
-    '''
     # ========== CREATE A PDF REPORT ========== #
-    '''
     pdf = PDFReport('sample_report.pdf')
 
+    '''
+    # NOTE ON POSITIONING AND SIZING:
+    # todo: note for ReportLab, the origin (0, 0) is at the bottom left corner of the page.
+    #  -- the X coordinate increases to the right, and the Y coordinate increases upwards. 
+    #  -- so positions are defined relative to the bottom left corner of the page. 
+    #  -- and each object's lower left corner is placed at the specified position relative to that corner.
 
-    # # NOTE ON POSITIONING AND SIZING:
+    # todo: width is the width (in points) that the image will occupy on the canvas 
+    #  -- height is the height (in points) that the image will occupy on the canvas. 
+    #  -- the image will be scaled (if necessary) so that it fits exactly within a rectangle of (width x height) points.
 
-    # # note for ReportLab, the origin (0, 0) is at the bottom left corner of the page.
-    # #  -- the X coordinate increases to the right, and the Y coordinate increases upwards.
-    # #  -- so positions are defined relative to the bottom left corner of the page.
-    # #  -- and each object's lower left corner is placed at the specified position relative to that corner.
-    #
-    # # width is the width (in points) that the image will occupy on the canvas
-    # #  -- height is the height (in points) that the image will occupy on the canvas.
-    # #  -- the image will be scaled (if necessary) so that it fits exactly within a rectangle of (width x height) points.
-    #
-    # PLOT EXAMPLE:
-    #
-    # pdf.add_matplotlib_figure(fig, x=50, y=300, width=400, height=250)
-    # - the lower left corner of the image will be 50 points from the left edge of the page,
-    # - and 300 points from the bottom edge of the page.
-    # - the image will be drawn in a rectangle that is 400 points wide and 250 points tall.
-    #
-    # TABLE EXAMPLE:
-    #
-    # pdf.add_table(simple_df, x=50, y=250)
-    # -- x and y are the coordinates of the lower left corner of the table, relative to the bottom left corner of the page.
-    # -- col_widths: an optional list specifying the width (in points) of each column in the table.
-    #     - if not provided, the code defaults to equal widths based on total page width.
-    # -- row_heights: an optional list specifying the height (in points) of each row in the table.
-    #     - if not provided, the code defaults to a fixed height in points for each row.
-    # -- config: an optional dictionary with additional configuration options for the table.
+    PLOT EXAMPLE:
 
+    pdf.add_matplotlib_figure(fig, x=50, y=300, width=400, height=250)
+    - the lower left corner of the image will be 50 points from the left edge of the page,
+    - and 300 points from the bottom edge of the page.
+    - the image will be drawn in a rectangle that is 400 points wide and 250 points tall.
+
+    TABLE EXAMPLE:
+    pdf.add_table(simple_df, x=50, y=250)
+    -- x and y are the coordinates of the lower left corner of the table, relative to the bottom left corner of the page.
+    -- col_widths: an optional list specifying the width (in points) of each column in the table.
+        - if not provided, the code defaults to equal widths based on total page width.
+    -- row_heights: an optional list specifying the height (in points) of each row in the table.
+        - if not provided, the code defaults to a fixed height in points for each row.
+    -- config: an optional dictionary with additional configuration options for the table.
+
+
+    '''
 
     # ========== PAGE 1: simple df and matplotlib plot ========== #
-
-
-    def content_page1(c, width, height):
-        page_width = width - 100
-        plot_height = 300
-        bottom_plot = height - plot_height - 50
-
-        pdf.add_matplotlib_figure(fig, x=50, y=bottom_plot, width=page_width, height=plot_height)
-        col_widths = [page_width / len(simple_df.columns)] * len(simple_df.columns)
-        pdf.add_table(simple_df, x=50, y=bottom_plot - 50, col_widths=col_widths)
-
-    pdf.add_page(header_text='Sample Report - Page 1', footer_text='Page 1', content_fn=content_page1)
+    pdf.add_page(header_text='Sample Report - Figure & Table', footer_text='Page 1', content_fn=content_fn_plot_table)
 
     # ========== PAGE 2: multi-index df and table with a customized table formatting ========== #
-
-
-    def content_page2(c, width, height):
-        dynamic_rules = get_dynamic_rules(multi_df, 3)  # note column_idx is inclusive of index columns
-        config = {
-            'merged_cells': [((0, 0), (1, 0))],
-            'conditional_format': [
-                {'cells': (1, 1), 'bg_color': colors.lightgrey, 'text_color': red1},
-                {'cells': (2, 2), 'bg_color': red3, 'text_color': blue1}
-            ] + dynamic_rules,
-            'general_style': [
-                ('FONTSIZE', (0, 0), (-1, -1), 10)
-            ]
-        }
-        page_width = width - 100
-        num_cols = len(multi_df.columns) + len(multi_df.index.names)
-        col_widths = [page_width / num_cols] * num_cols
-        pdf.add_table(multi_df, x=50, y=height-100, config=config, col_widths=col_widths)
-
-    pdf.add_page(header_text='Sample Report - Page 2', footer_text='Page 2', content_fn=content_page2)
+    pdf.add_page(header_text='Sample Report - Multi-Index Table', footer_text='Page 2', content_fn=content_fn_table_only)
 
     # ========== PAGE 3: grid layout with multiple plots ========== #
-    pdf.add_page(header_text='Sample Report - Page 3', footer_text='Page 3', content_fn=content_fn_grid)
+    pdf.add_page(header_text='Sample Report - Grid Layout', footer_text='Page 3', content_fn=content_fn_grid)
 
     # ========== PAGE 4: custom layout with plots and tables ========== #
-    pdf.add_page(header_text='Sample Report - Page 4', footer_text='Page 4', content_fn=content_fn_custom)
+    pdf.add_page(header_text='Sample Report - Custom Layout', footer_text='Page 4', content_fn=content_fn_custom)
 
     pdf.save()
     print(f'PDF report saved to {pdf.filename}')
