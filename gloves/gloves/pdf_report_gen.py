@@ -45,8 +45,9 @@ class PDFReport:
 
     def add_page(self, header_text=None, footer_text=None, content_fn=None):
         """
-        Adds a new page. The content_fn is a function that takes the canvas as an input
-        and draws the main content (tables, images, etc.) on the canvas.
+        add a new page.
+        content_fn is a function that takes the canvas as an input
+        and draws the main content (tables, images, etc.) on the canvas
         :param header_text:
         :param footer_text:
         :param content_fn:
@@ -62,7 +63,7 @@ class PDFReport:
 
     def add_header(self, text, banner_height=35, font='Helvetica-Bold', font_size=16, fill_color=blue1):
         """
-        Draw a header at top center
+        draw header at top center
         :param text:
         :param banner_height:
         :param font:
@@ -70,26 +71,26 @@ class PDFReport:
         :param fill_color:
         :return:
         """
-        # Draw the banner rectangle at the top
+        # draw banner rectangle at the top
         self.c.setFillColor(fill_color)
         self.c.rect(0, self.height - banner_height, self.width, banner_height, fill=1, stroke=0)
 
-        # Set white text and desired font
+        # set white text and font
         self.c.setFont(font, font_size)
         self.c.setFillColor(colors.white)
 
-        # Calculate horizontal centering of the text
+        # calc horizontal centering of text
         text_width = self.c.stringWidth(text, font, font_size)
         x_text = (self.width - text_width) / 2
 
-        # Approximate vertical centering within the banner
+        # approx vertical centering within banner
         y_text = self.height - banner_height / 2 - font_size / 4
 
         self.c.drawString(x_text, y_text, text)
 
     def add_footer(self, text, y_offset=20, font='Helvetica', font_size=10, fill_color=blue1):
         """
-        Draw a footer at bottom center
+        draw a footer at bottom center
         :param text:
         :param y_offset:
         :param font:
@@ -104,7 +105,7 @@ class PDFReport:
 
     def add_matplotlib_figure(self, fig, x=50, y=300, width=400, height=250):
         """
-        Saves a matplotlib to a temporary file and adds it as an image to the canvas.
+        save matplotlib fig to a temp file and add it as an image to the canvas.
         :param fig:
         :param x:
         :param y:
@@ -119,7 +120,7 @@ class PDFReport:
 
     def add_table(self, df, x=50, y=250, col_widths=None, row_heights=None, config=None):
         """
-        Create a table with the given pandas df with optional configuration.
+        create a table object from the given pandas df with optional configuration.
         The config dictionary can contain keys like:
             - 'merge_cells': list of tuples (start, end) e.g., [((col1, row1), (col2, row2)), ...]
             - 'conditional_format': list of dicts, e.g.
@@ -163,6 +164,7 @@ class PDFReport:
             ('FONTSIZE', (0, 0), (-1, -1), 10)
         ])
 
+        # if there's a multi-index, option to shade the index cols differently than non-index cols
         if isinstance(df.index, pd.MultiIndex):
             n_index = len(df.index.names)
             style.add('BACKGROUND', (0, 0), (n_index - 1, 0), blue1)
@@ -183,7 +185,7 @@ class PDFReport:
                 for row in range(2, len(data)):
                     if data[row][col] == current_val:
                         continue
-                    else:  # if more than one row has the same value, merge them
+                    else:  # if more than one row has the same value, merge them using span
                         if row - start_row > 1:
                             style.add('SPAN', (col, start_row), (col, row - 1))
                         style.add('BACKGROUND', (col, start_row), (col, row - 1), colors.lightgrey)
@@ -221,9 +223,9 @@ class PDFReport:
 
         # draw table.
         # note: Table.wrap returns the width, height of the table
-        # the provided y here is intended as a top reference point for the table
-        # , and since ReportLab draws objects from the bottom left corner,
-        # we need to adjust the y position so that the table is shifted downward by its own height 'th'
+        # the provided y here is intended as a top reference point for the table,
+        # and since ReportLab draws objects from the bottom left corner,
+        # we need to adjust the y position so that the table is shifted downward by its own height, 'th'
         # so that it's top aligns with the y provided
         tw, th = table.wrap(self.width, self.height)
         table.drawOn(self.c, x, y - th)
@@ -233,27 +235,27 @@ class PDFReport:
 
 
 def content_fn_grid(c, width, height):
-    # Layout parameters
+    # layout params
     margin_top, margin_bottom = 50, 50
     margin_left, margin_right = 50, 50
     spacer_x, spacer_y = 10, 10
     n_rows, n_cols = 3, 2  # adjust as needed (e.g. 1x2 for 2 items, 2x3 for 6 items)
 
-    # Compute available area
+    # compute available area for grid boxes
     avail_width = width - margin_left - margin_right - (n_cols - 1) * spacer_x
     avail_height = height - margin_top - margin_bottom - (n_rows - 1) * spacer_y
     cell_w = avail_width / n_cols
     cell_h = avail_height / n_rows
 
-    # List of items to place (order: row-major from top left)
+    # list of items to place (order: start from top-left, go left to right row by row)
     items = [
         {'type': 'plot', 'content': fig},
         {'type': 'plot', 'content': fig},
         {'type': 'plot', 'content': fig},
+        {'type': 'table', 'content': simple_df},
         {'type': 'plot', 'content': fig},
         {'type': 'plot', 'content': fig},
-        {'type': 'plot', 'content': fig},
-        # Add more items as needed...
+        # can add more items as needed, just update n_rows * n_cols
     ]
     if len(items) > n_rows * n_cols:
         raise ValueError(f"Too many items for the grid layout in content_fn_grid(): {len(items)} items but only {n_rows} * {n_cols} cells available.")
@@ -265,17 +267,18 @@ def content_fn_grid(c, width, height):
         # y_top: top of the cell (pages origin is bottom left)
         y_top = height - margin_top - row * (cell_h + spacer_y)
         if item['type'] == 'plot':
-            # For plots, specify y as lower-left corner (y_top - cell height)
+            # for plots, specify y as lower-left corner (y_top - cell height)
             pdf.add_matplotlib_figure(item['content'], x=x, y=y_top - cell_h, width=cell_w, height=cell_h)
         elif item['type'] == 'table':
-            # For tables, our add_table uses y as the top reference
-            pdf.add_table(item['content'], x=x, y=y_top)
+            # for tables, our add_table uses y as the top reference
+            num_cols = len(item['content'].columns)
+            pdf.add_table(item['content'], x=x, y=y_top, col_widths=[cell_w / num_cols] * num_cols)
 
 
 def content_fn_custom(c, width, height):
-    # Define boxes manually. Each box specifies its position and size.
+    # define boxes manually. each box specifies its position and size.
     boxes = [
-        # Top row: two plots side-by-side
+        # top row: two plots side-by-side
         {
             'type': 'plot',
             'content': fig,
@@ -292,13 +295,13 @@ def content_fn_custom(c, width, height):
             'width': (width - 100 - 10) / 2,
             'height': 200
         },
-        # Bottom row: one table spanning full width
+        # bottom row: one table spanning full width
         {
             'type': 'table',
             'content': simple_df,
             'x': 50,
             'y': height / 2  # top of the table
-            # you can optionally add 'col_widths' or 'row_heights' here
+            # can optionally add 'col_widths' or 'row_heights' here
         }
     ]
 
@@ -316,24 +319,25 @@ def content_fn_custom(c, width, height):
 
 
 def get_dynamic_rules(df: pd.DataFrame, column_idx: int):
-    # Determine how many extra index columns exist (if using a MultiIndex)
+    # determine how many extra index columns exist (if using multi-index df)
     num_index = len(df.index.names) if isinstance(df.index, pd.MultiIndex) else 0
-    # Our target is overall column index 3 (4th column); so the corresponding data column is:
+    # target column to format is column_idx (e.g. column_idx + 1 in counting terms, including any multi-index)
+    # so the corresponding data column in our df is:
     target_data_col = column_idx - num_index
 
-    # Extract the values from the target data column in the dataframe
+    # get values from the target data column
     col_values = df.iloc[:, target_data_col]
     min_val = col_values.min()
     max_val = col_values.max()
-    diff = max_val - min_val if max_val != min_val else 1
+    val_range = max_val - min_val if max_val != min_val else 1
 
-    # Build dynamic conditional formatting rules for each data row (table row 0 is header)
+    # build conditional formatting rules for each data row (table row 0 is header, so start at 1)
     dynamic_rules = []
     for i, value in enumerate(col_values, start=1):
-        norm = (value - min_val) / diff
+        norm = (value - min_val) / val_range
         bg_color = get_color_from_cmap(norm)
         dynamic_rules.append({
-            'cells': (column_idx, i),  # 4th column, row i
+            'cells': (column_idx, i),
             'bg_color': bg_color,
             'text_color': colors.black
         })
@@ -341,6 +345,12 @@ def get_dynamic_rules(df: pd.DataFrame, column_idx: int):
 
 
 if __name__ == "__main__":
+    # example usage below -- will create 'sample_report.pdf' in the current directory
+
+    '''
+    # ========== CREATE SAMPLE DATA ========== #
+    '''
+
     # create simple dataframe
     simple_df = pd.DataFrame({
         'A': [1, 2, 3, 4, 5],
@@ -364,40 +374,44 @@ if __name__ == "__main__":
     ax.set_title('Sample Line Plot')
     ax.legend()
 
+    '''
     # ========== CREATE A PDF REPORT ========== #
+    '''
     pdf = PDFReport('sample_report.pdf')
 
-    '''
-    # NOTE ON POSITIONING AND SIZING:
-    # todo: note for ReportLab, the origin (0, 0) is at the bottom left corner of the page.
-    #  -- the X coordinate increases to the right, and the Y coordinate increases upwards. 
-    #  -- so positions are defined relative to the bottom left corner of the page. 
-    #  -- and each object's lower left corner is placed at the specified position relative to that corner.
-    
-    # todo: width is the width (in points) that the image will occupy on the canvas 
-    #  -- height is the height (in points) that the image will occupy on the canvas. 
-    #  -- the image will be scaled (if necessary) so that it fits exactly within a rectangle of (width x height) points.
-    
-    PLOT EXAMPLE:
-    
-    pdf.add_matplotlib_figure(fig, x=50, y=300, width=400, height=250)
-    - the lower left corner of the image will be 50 points from the left edge of the page,
-    - and 300 points from the bottom edge of the page.
-    - the image will be drawn in a rectangle that is 400 points wide and 250 points tall.
-    
-    TABLE EXAMPLE:
-    pdf.add_table(simple_df, x=50, y=250)
-    -- x and y are the coordinates of the lower left corner of the table, relative to the bottom left corner of the page.
-    -- col_widths: an optional list specifying the width (in points) of each column in the table.
-        - if not provided, the code defaults to equal widths based on total page width.
-    -- row_heights: an optional list specifying the height (in points) of each row in the table.
-        - if not provided, the code defaults to a fixed height in points for each row.
-    -- config: an optional dictionary with additional configuration options for the table.
-        
-    
-    '''
+
+    # # NOTE ON POSITIONING AND SIZING:
+
+    # # note for ReportLab, the origin (0, 0) is at the bottom left corner of the page.
+    # #  -- the X coordinate increases to the right, and the Y coordinate increases upwards.
+    # #  -- so positions are defined relative to the bottom left corner of the page.
+    # #  -- and each object's lower left corner is placed at the specified position relative to that corner.
+    #
+    # # width is the width (in points) that the image will occupy on the canvas
+    # #  -- height is the height (in points) that the image will occupy on the canvas.
+    # #  -- the image will be scaled (if necessary) so that it fits exactly within a rectangle of (width x height) points.
+    #
+    # PLOT EXAMPLE:
+    #
+    # pdf.add_matplotlib_figure(fig, x=50, y=300, width=400, height=250)
+    # - the lower left corner of the image will be 50 points from the left edge of the page,
+    # - and 300 points from the bottom edge of the page.
+    # - the image will be drawn in a rectangle that is 400 points wide and 250 points tall.
+    #
+    # TABLE EXAMPLE:
+    #
+    # pdf.add_table(simple_df, x=50, y=250)
+    # -- x and y are the coordinates of the lower left corner of the table, relative to the bottom left corner of the page.
+    # -- col_widths: an optional list specifying the width (in points) of each column in the table.
+    #     - if not provided, the code defaults to equal widths based on total page width.
+    # -- row_heights: an optional list specifying the height (in points) of each row in the table.
+    #     - if not provided, the code defaults to a fixed height in points for each row.
+    # -- config: an optional dictionary with additional configuration options for the table.
+
 
     # ========== PAGE 1: simple df and matplotlib plot ========== #
+
+
     def content_page1(c, width, height):
         page_width = width - 100
         plot_height = 300
@@ -410,6 +424,8 @@ if __name__ == "__main__":
     pdf.add_page(header_text='Sample Report - Page 1', footer_text='Page 1', content_fn=content_page1)
 
     # ========== PAGE 2: multi-index df and table with a customized table formatting ========== #
+
+
     def content_page2(c, width, height):
         dynamic_rules = get_dynamic_rules(multi_df, 3)  # note column_idx is inclusive of index columns
         config = {
