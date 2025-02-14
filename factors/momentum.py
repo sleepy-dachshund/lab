@@ -66,6 +66,50 @@ def pull_estimation_universe(index: str = 'sp500'):
         return pd.read_csv(f'{DATA_DIRECTORY}{index}.csv')['Ticker'].tolist()
 
 
+def pull_mkt_cap_last() -> pd.DataFrame:
+    try:
+        mcl = pd.read_csv(f'{DATA_DIRECTORY}IWV.csv')[['Ticker', 'Market Value']].copy()
+    except:
+        print('No market cap data found in IWV.csv. Will skip market cap weighting.')
+        return None
+    mcl.rename(columns={'Market Value': 'mkt_cap'}, inplace=True)
+    mcl.set_index('Ticker', inplace=True)
+    mcl.replace(',', '', regex=True, inplace=True)
+    mcl = mcl.astype(float)
+    mcl = mcl * 3.65e12 / mcl.max()  # scale up to full (estimated) market cap
+
+    # todo: need to combine GOOG, GOOGL ...
+    mcl.loc['GOOG'] = mcl.loc['GOOGL'] + mcl.loc['GOOG']
+    mcl.drop('GOOGL', inplace=True)
+    mcl.sort_values('mkt_cap', ascending=False, inplace=True)
+    return mcl
+
+
+def compute_historical_market_caps(daily_returns: pd.DataFrame, mcl: pd.DataFrame) -> pd.DataFrame:
+    """
+    compute historical market caps given final market caps and daily returns.
+    calc the cumulative product of (1 + r) from the day AFTER each date to the end.
+    """
+
+    # reverse the returns DataFrame
+    rev_returns = daily_returns.iloc[::-1]
+    # calc cumulative product on reversed returns
+    cumprod_rev = (1 + rev_returns).cumprod()
+    # reverse back and shift up so the last day product is 1 (empty product convention)
+    factor = cumprod_rev.iloc[::-1].shift(-1, fill_value=1)
+
+    # df of mkt_cap_last repeated over all dates
+    final_caps = pd.DataFrame(
+        data=np.tile(mcl['mkt_cap'].values, (len(daily_returns), 1)),
+        index=daily_returns.index,
+        columns=daily_returns.columns
+    )
+
+    # hist. mkt cap for each day = final market cap / cumulative factor
+    hist_mcap = final_caps / factor
+    return hist_mcap
+
+
 ''' ===============================================================================================================
         2. Pull daily prices and calculate daily returns
         
@@ -188,7 +232,8 @@ def calc_daily_returns_of_estu(price_df):
     """
     simple daily pct_change returns
     """
-    return price_df.pct_change().fillna(0)
+    # todo: confirm this works when we don't fillna(0) -- should be fine
+    return price_df.pct_change()
 
 
 ''' ===============================================================================================================
@@ -196,86 +241,52 @@ def calc_daily_returns_of_estu(price_df):
 =============================================================================================================== '''
 
 
-def calc_momentum_score(returns_df,
-                        lookback=252,
-                        weighting_scheme='exp',
-                        lag=21,
-                        custom_weights=None):
+def weights_equal(lookback: int, lag: int) -> np.array:
+    w = np.ones(lookback)
+    w[:lag] = 0
+    w /= w.sum() if w.sum() > 0 else 1
+    return w
+
+
+def weights_trapezoidal(lookback: int, lag: int, ramp_up: int, ramp_down: int) -> np.array:
+    w = np.zeros(lookback)
+    w[lag:lag+ramp_up] = np.linspace(0, 1, ramp_up, endpoint=False)
+    w[lag+ramp_up:lookback-ramp_down] = 1
+    w[lookback-ramp_down:lookback] = np.linspace(1, 0, ramp_down, endpoint=False)
+    w /= w.sum() if w.sum() > 0 else 1
+    return w
+
+
+def weights_exponential(lookback: int, lag: int, ramp_up: int, ramp_down: int, half_life: int) -> np.array:
+    days = np.arange(lookback)
+    w = np.zeros(lookback)
+    w[lag:] = np.exp(-np.log(2) * (days[lag:] - lag) / half_life)
+    if ramp_up > 0:
+        w[lag:lag+ramp_up] *= np.linspace(0, 1, ramp_up, endpoint=False)
+    if ramp_down > 0:
+        w[-ramp_down:] *= np.linspace(1, 0, ramp_down, endpoint=False)
+    w /= w.sum() if w.sum() > 0 else 1
+    return w
+
+
+def weighted_average_returns(df, weight_func, lookback, **kwargs) -> (pd.DataFrame, np.array):
     """
-    compute a weighted sum of past returns for every ticker every day.
-    - 'uniform': equally weight last X days
-    - 'trapezoidal': linearly increasing weights to plateau then linearly decreasing (Axioma)
-    - 'exp': exponential decay weighting (BARRA)
-    - 'custom': can pass your own array
-    lag: number of days on front end left out of score calc, given 0% weight
+    Parameters:
+        df          :   df of daily returns (index is datetime, columns are tickers)
+        weight_func :   a pre-defined weighting function that will return an np.array of length lookback
+        lookback    :   window length (e.g. 252)
+        kwargs      :   additional params for the weighting function (lag, ramp_up, half_life,  etc.)
+
+    Returns:
+        result      :   df of trailing weighted average returns (aligned to last date of each window)
+        weights     :   the weight vector used (for inspection)
     """
-    momentum_df = pd.DataFrame(index=returns_df.index, columns=returns_df.columns)
-    weights = np.zeros(lookback)
-
-    for i, date in enumerate(returns_df.index):
-        if i < lookback:
-            continue  # not enough lookback data, could use some other estimation or fill value here
-        window = returns_df.iloc[i - lookback:i]
-
-        if weighting_scheme == 'uniform':
-            weights = np.ones(lookback) / lookback
-
-        elif weighting_scheme == 'trapezoidal':
-            # set ramp periods for increasing and decreasing weights
-            ramp_up = int(lookback * 10 / 252)
-            ramp_down = int(lookback * 10 / 252)
-
-            weights = np.zeros(lookback)
-            for j in range(lookback):
-                if j < lag:
-                    weights[j] = 0
-                elif j < ramp_up + lag:
-                    weights[j] = j / ramp_up
-                elif j >= lookback - ramp_down:
-                    weights[j] = (lookback - j) / ramp_down
-                else:
-                    weights[j] = 1
-
-        elif weighting_scheme == 'exp':
-            # an example of an exponential decay weighting schema
-            # preferred route for up-weighting recent returns, also resulting in lower turnover
-            half_life = lookback / 2
-            ramp_up = int(lookback * 10 / 252)
-            ramp_down = int(lookback * 10 / 252)
-
-            weights = np.exp(-np.log(2) * np.arange(lookback) / half_life)
-
-            # now clean up the basic exp series
-            max_weight = weights.max()
-            min_weight = weights.min()
-
-            weights[:lag] = 0
-
-            for j in range(lookback):
-                if j < lag:
-                    weights[j] = 0
-                elif j < ramp_up + lag:
-                    weights[j] = weights[j - 1] + (max_weight / ramp_up)
-                elif j >= lookback - ramp_down:
-                    weights[j] = weights[j - 1] - (min_weight / ramp_down)
-                else:
-                    continue
-        else:
-            # could provide custom array here...
-            weights = np.ones(lookback) / lookback  # fallback
-
-        # make sure all weights are > 0 and sum to 1
-        weights = weights - weights.min()
-        weights = weights / weights.sum()
-
-        # ensure we zero out the lag on front end, regardless of above logic...
-        if lag > 0:
-            weights[:lag] = 0
-
-        # weighted sum for each ticker
-        momentum_df.loc[date] = (window.values * weights[:, None]).sum(axis=0)
-
-    return momentum_df.astype(float), weights
+    weights = weight_func(lookback=lookback, **kwargs)
+    arr = df.values
+    roll = np.lib.stride_tricks.sliding_window_view(arr, window_shape=lookback, axis=0)
+    w_avg = np.tensordot(roll, weights, axes=1)
+    result = pd.DataFrame(w_avg, index=df.index[lookback-1:], columns=df.columns)
+    return result, weights
 
 
 ''' ===============================================================================================================
@@ -656,14 +667,30 @@ if __name__ == '__main__':
 
     # 1. Universe
     tickers = pull_estimation_universe(estu)
+    mkt_cap_last = pull_mkt_cap_last()
 
     # 2. Pull prices and returns
     prices = pull_daily_prices_of_estu(tickers, start='2016-01-01', try_cache=True, cache_path=f'prices_{estu}.csv')
     rets = calc_daily_returns_of_estu(prices)
+    if mkt_cap_last is not None:
+        # drop GOOGL from prices and rets
+        prices = prices.drop('GOOGL', axis=1)
+        rets = rets.drop('GOOGL', axis=1)
 
-    # 3. Momentum scores
-    mom_scores, weights = calc_momentum_score(rets, lookback=lookback, weighting_scheme=weighting_scheme)
-    factor_stretch = mom_scores.quantile(0.9, axis=1) - mom_scores.quantile(0.1, axis=1)
+    # 3. Momentum scores / characteristics
+    mom_scores_raw, weights = weighted_average_returns(rets, weights_exponential, lookback, lag=21,
+                                                       ramp_up=10, ramp_down=10, half_life=126)
+    factor_stretch = mom_scores_raw.quantile(0.9, axis=1) - mom_scores_raw.quantile(0.1, axis=1)
+
+    # todo: weight mom_scores by mcap for more realistic factor portfolio (mkt portfolio would have loading of 0
+    if mkt_cap_last is not None:
+        mkt_cap_last = mkt_cap_last.loc[mkt_cap_last.index.isin(mom_scores_raw.columns)]
+        hist_market_caps = compute_historical_market_caps(rets, mkt_cap_last)
+        # normalize df mom_scores_raw by subtracting the daily mean (pd.Series) and dividing by daily std (pd.Series)
+        daily_std = mom_scores_raw.std(axis=1)
+        mom_scores = mom_scores_raw.copy()
+    else:
+        mom_scores = mom_scores_raw.copy()
 
     # 4. Normalize
     norm_mom_scores = normalize_factor_loadings_by_day(mom_scores)
