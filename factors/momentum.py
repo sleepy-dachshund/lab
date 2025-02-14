@@ -35,8 +35,10 @@
 
 '''
 
-import pandas as pd
+import os
+import time
 import numpy as np
+import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
 
@@ -52,6 +54,7 @@ def pull_estimation_universe(index: str = 'sp500'):
     """
     scrape S&P 500 tickers from wikipedia by default, or use a csv file.
     """
+    # todo: need a better estimation universe
     if index.lower() == 'sp500':
         url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
         tables = pd.read_html(url)
@@ -59,29 +62,103 @@ def pull_estimation_universe(index: str = 'sp500'):
         tickers = [t.replace('.', '-') for t in tickers]
         return tickers
     else:
-        return pd.read_csv(f'{index}.csv')['Ticker'].tolist()
+        # read a custom .csv file from data directory, just needs a 'Ticker' column
+        return pd.read_csv(f'{DATA_DIRECTORY}{index}.csv')['Ticker'].tolist()
 
 
 ''' ===============================================================================================================
         2. Pull daily prices and calculate daily returns
+        
+        -- not ethis is messy due to yfinance API limits...
 =============================================================================================================== '''
+
+
+def load_price_cache(cache_filename=DATA_DIRECTORY+'price_cache.csv'):
+    """load cached price data if available."""
+    if os.path.exists(cache_filename):
+        try:
+            return pd.read_csv(cache_filename, index_col=0)
+        except Exception as e:
+            print(f"Error loading cache: {e}")
+    return pd.DataFrame()
+
+
+def save_price_cache(data, cache_filename=DATA_DIRECTORY+'price_cache.csv'):
+    """save the price data to a cache CSV."""
+    data.to_csv(cache_filename)
+
+
+def download_batch(batch, start, end, delay, max_retries):
+    """download a batch of tickers with retry logic and validate the data."""
+    retries = 0
+    while retries < max_retries:
+        try:
+            batch_data = yf.download(batch, start=start, end=end, auto_adjust=False)['Adj Close']
+            if isinstance(batch_data, pd.Series):
+                batch_data = batch_data.to_frame()
+
+            # validate that at least 75% of columns are not entirely null...
+            valid_cols = batch_data.columns[~batch_data.isnull().all()]
+            if len(valid_cols) < 0.75 * batch_data.shape[1]:
+                raise ValueError(f"Only {len(valid_cols)}/{batch_data.shape[1]} columns are valid.")
+
+            return batch_data
+        except Exception as e:
+            retries += 1
+            print(f"Error downloading batch {batch}: Retry {retries}/{max_retries} - {e}")
+            time.sleep(delay * retries)  # exponential backoff
+    return None
+
+
+def pull_fresh_prices(tickers, start, end, batch_size=100, delay=10, max_retries=3,
+                      cache_filename=DATA_DIRECTORY+'price_cache.csv', output_file_name='prices.csv'):
+    """
+    Pull fresh price data for the given tickers.
+    - Only downloads tickers that aren't already cached.
+    - Updates the cache CSV as each batch is successfully downloaded.
+    """
+    # load existing cache.
+    cache_df = load_price_cache(cache_filename)
+    cached_tickers = set(cache_df.columns) if not cache_df.empty else set()
+
+    # filter out tickers already in the cache.
+    tickers_to_download = [t for t in tickers if t not in cached_tickers]
+    print(
+        f"Total tickers: {len(tickers)}. Already cached: {len(cached_tickers)}. To download: {len(tickers_to_download)}")
+
+    # download missing tickers in batches.
+    for i in range(0, len(tickers_to_download), batch_size):
+        batch = tickers_to_download[i:i + batch_size]
+        batch_data = download_batch(batch, start, end, delay, max_retries)
+        if batch_data is not None:
+            # update cache by merging new data with existing data.
+            if cache_df.empty:
+                cache_df = batch_data.copy()
+            else:
+                # align date cols of new and existing data
+                cache_df.index = pd.to_datetime(cache_df.index)
+                batch_data.index = pd.to_datetime(batch_data.index)
+                cache_df = pd.concat([cache_df, batch_data], axis=1)
+                cache_df = cache_df.loc[:, ~cache_df.columns.duplicated()]
+            save_price_cache(cache_df, cache_filename)
+        else:
+            print(f"Batch {batch} failed after {max_retries} retries. Skipping.")
+        time.sleep(delay)  # Delay between batches
+
+    # save the full data to another file.
+    cache_df = cache_df.loc[:, ~cache_df.columns.duplicated()]
+    cache_df.to_csv(output_file_name)
+    return cache_df
 
 
 def pull_daily_prices_of_estu(tickers, start='2020-01-01', end=None,
                               cache_dir: str = DATA_DIRECTORY,
-                              cache_path: str = 'prices_momentum.csv',
+                              cache_path: str = 'prices_sp500.csv',
                               try_cache=True):
     """
     pull daily adj. close prices from yfinance. check local cache first by default.
     """
     cache_csv = cache_dir + cache_path
-
-    def pull_fresh_prices(tickers, start, end):
-        data = yf.download(tickers, start=start, end=end)['Adj Close']
-        if len(tickers) == 1:
-            data = data.to_frame()
-        data.to_csv(cache_csv)
-        return data
 
     if not tickers:
         return pd.DataFrame()
@@ -89,18 +166,20 @@ def pull_daily_prices_of_estu(tickers, start='2020-01-01', end=None,
     if try_cache:
         try:
             data = pd.read_csv(cache_csv, index_col=0, parse_dates=True)
-            data = data[tickers]
+            data = data[tickers].dropna(how='all', axis=0)
             if end:
                 data = data.loc[start:end]
             else:
                 data = data.loc[start:]
             return data
         except FileNotFoundError:
-            data = pull_fresh_prices(tickers, start, end)
+            data = pull_fresh_prices(tickers, start, end, output_file_name=cache_csv)
+            data.dropna(how='all', axis=0, inplace=True)
             data.to_csv(cache_csv)
             return data
     else:
-        data = pull_fresh_prices(tickers, start, end)
+        data = pull_fresh_prices(tickers, start, end, output_file_name=cache_csv)
+        data.dropna(how='all', axis=0, inplace=True)
         data.to_csv(cache_csv)
         return data
 
@@ -255,7 +334,7 @@ def calc_quantile_returns(returns_df, factor_loadings_df, quantiles=10):
         bottom_group = loadings_sorted.iloc[0:bin_size]
         top_group = loadings_sorted.iloc[-bin_size:]
 
-        # just taking the average here, but should definitely do a different weighted average scheme like sqrt(mcap)
+        # todo: just taking the average here, but should definitely do a different weighted average scheme like sqrt(mcap)
         bottom_ret = bottom_group['returns'].mean()
         top_ret = top_group['returns'].mean()
 
@@ -287,6 +366,8 @@ def calc_quantile_name_turnover(factor_loadings_df, quantiles=10):
 
     note: this calcs daily turnover of names in the top/bottom quantile
     -- not in % GMV, and not of the loadings themselves, which is what you'd actually manage to
+
+    # todo: should slow this down from daily to monthly, include a buffer zone
     """
     dates = factor_loadings_df.index
     top_overlap = []
@@ -568,16 +649,16 @@ if __name__ == '__main__':
     '''
 
     # 0. Params
-    estu = 'sp500'
+    estu = 'IWV'  # 'sp500' or 'IWV'
     lookback = 252
     weighting_scheme = 'exp'
     quantiles = 4
 
     # 1. Universe
-    tickers = pull_estimation_universe('sp500')
+    tickers = pull_estimation_universe(estu)
 
     # 2. Pull prices and returns
-    prices = pull_daily_prices_of_estu(tickers, start='2016-01-01', try_cache=True)
+    prices = pull_daily_prices_of_estu(tickers, start='2016-01-01', try_cache=True, cache_path=f'prices_{estu}.csv')
     rets = calc_daily_returns_of_estu(prices)
 
     # 3. Momentum scores
@@ -622,4 +703,4 @@ if __name__ == '__main__':
     '''
     # run across various lookbacks, weighting schemes, quantiles -- compare stats of various factors
     results_df = run_momentum_grid_search(rets)
-    results_df.to_excel(f'{DATA_DIRECTORY}momentum_grid_search_results.xlsx')
+    results_df.to_excel(f'{DATA_DIRECTORY}momentum_grid_search_results_{estu}.xlsx')
