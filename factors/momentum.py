@@ -294,6 +294,35 @@ def weighted_average_returns(df, weight_func, lookback, **kwargs) -> (pd.DataFra
 =============================================================================================================== '''
 
 
+def calc_daily_weighted_mean_score(df_scores, df_weights, method='sqrt'):
+    """
+    apply daily market cap weighting to characteristics (trailing weighted average returns)
+    """
+
+    # align dates and tickers between returns and market cap data.
+    common_dates = df_scores.index.intersection(df_weights.index)
+    mcaps = df_weights.loc[common_dates].reindex(columns=df_scores.columns)
+    df_scores = df_scores.loc[common_dates]
+
+    # apply weighting method.
+    if method == 'sqrt':
+        weight_base = np.sqrt(mcaps)
+    else:
+        weight_base = mcaps
+
+    # normalize weights so that each day's weights sum to 1.
+    daily_totals = weight_base.sum(axis=1)
+    daily_weights = weight_base.div(daily_totals, axis=0)
+
+    # weight the trailing returns by the daily market cap weights.
+    weighted_scores = df_scores * daily_weights
+
+    # sum the weighted scores to get the daily weighted mean return.
+    daily_weighted_mean_score = weighted_scores.fillna(0).sum(axis=1)
+
+    return daily_weighted_mean_score
+
+
 def normalize_factor_loadings_by_day(momentum_df):
     """
     mean = 0, std = 1 for each day across all tickers.
@@ -370,7 +399,7 @@ def calc_momentum_factor_returns(quantile_returns_df):
 =============================================================================================================== '''
 
 
-def calc_quantile_name_turnover(factor_loadings_df, quantiles=10):
+def calc_quantile_name_turnover(factor_loadings_df, quantiles=4):
     """
     returns a df of day-to-day overlap and turnover
     for top and bottom quantiles.
@@ -559,6 +588,51 @@ def plot_factor_cumulative_returns(
     plt.show()
 
 
+def sense_check_mom_loading_calcs(norm_mom_scores, hist_market_caps, weight_type='cap'):
+    def check_zero_exposure(mom_scores, hist_market_caps, weight_type='cap'):
+        """
+        Calculates the daily weighted exposure of normalized mom_scores.
+
+        Parameters:
+        - mom_scores: DataFrame of normalized scores (datetime index, ticker columns).
+        - hist_market_caps: DataFrame of daily market caps (same shape as mom_scores).
+        - weight_type: 'cap' for market cap weighting or 'sqrt' for sqrt(mcap) weighting.
+
+        Returns:
+        - Series of daily weighted exposures.
+        """
+        weights = hist_market_caps if weight_type == 'cap' else np.sqrt(hist_market_caps)
+        return (mom_scores * weights).sum(axis=1) / weights.sum(axis=1)
+
+    # describe norm_mom_scores -- check if each day is mean 0 std 1
+    dmean_score = norm_mom_scores.mean(axis=1)
+    dstd_score = norm_mom_scores.std(axis=1)
+
+    # plot dmean and dstd of our loadings
+    fig, ax = plt.subplots(2, 1, figsize=(12, 6))
+    ax[0].plot(dmean_score)
+    ax[0].set_title('Daily Mean of Normalized Momentum Scores')
+    ax[1].plot(dstd_score)
+    ax[1].set_title('Daily Std Dev of Normalized Momentum Scores')
+    ax[0].set_ylim(-2, 2)
+    ax[1].set_ylim(0, 2)
+    plt.show()
+
+    # market portfolio loadings
+    cap_exposure = check_zero_exposure(norm_mom_scores, hist_market_caps, weight_type='cap')
+    sqrt_exposure = check_zero_exposure(norm_mom_scores, hist_market_caps, weight_type='sqrt')
+
+    # plot daily exposures of market portfolio
+    fig, ax = plt.subplots(2, 1, figsize=(12, 6))
+    ax[0].plot(cap_exposure)
+    ax[0].set_title('Daily Cap-weighted Exposure')
+    ax[1].plot(sqrt_exposure)
+    ax[1].set_title('Daily Sqrt-weighted Exposure')
+    ax[0].set_ylim(-2, 2)
+    ax[1].set_ylim(-2, 2)
+    plt.show()
+
+
 ''' ===============================================================================================================
         8. Correlation of Factor to any other return series
 =============================================================================================================== '''
@@ -682,18 +756,17 @@ if __name__ == '__main__':
                                                        ramp_up=10, ramp_down=10, half_life=126)
     factor_stretch = mom_scores_raw.quantile(0.9, axis=1) - mom_scores_raw.quantile(0.1, axis=1)
 
-    # todo: weight mom_scores by mcap for more realistic factor portfolio (mkt portfolio would have loading of 0
-    if mkt_cap_last is not None:
+    # 4. Normalize factor loadings
+    if mkt_cap_last is not None:  # standardize loadings using cap-weighted mean and equal-weighted std dev
         mkt_cap_last = mkt_cap_last.loc[mkt_cap_last.index.isin(mom_scores_raw.columns)]
         hist_market_caps = compute_historical_market_caps(rets, mkt_cap_last)
-        # normalize df mom_scores_raw by subtracting the daily mean (pd.Series) and dividing by daily std (pd.Series)
+        daily_mcap_weighted_mean = calc_daily_weighted_mean_score(mom_scores_raw, hist_market_caps, method='sqrt')
         daily_std = mom_scores_raw.std(axis=1)
-        mom_scores = mom_scores_raw.copy()
-    else:
-        mom_scores = mom_scores_raw.copy()
+        norm_mom_scores = mom_scores_raw.sub(daily_mcap_weighted_mean, axis=0).div(daily_std, axis=0)
+    else:  # simple normalization of loadings
+        norm_mom_scores = normalize_factor_loadings_by_day(mom_scores_raw)
 
-    # 4. Normalize
-    norm_mom_scores = normalize_factor_loadings_by_day(mom_scores)
+    sense_check_mom_loading_calcs(norm_mom_scores, hist_market_caps, weight_type='cap')
 
     # 5. Factor returns
     quantile_ret = calc_quantile_returns(rets, norm_mom_scores, quantiles=quantiles)
@@ -714,12 +787,12 @@ if __name__ == '__main__':
         print(f'{k}: {v}')
 
     # 8. Correlation with another series (e.g., NVDA returns)
-    corr_ticker = 'NVDA'
-    other_prices = pull_daily_prices_of_estu([corr_ticker], start='2020-01-01')
-    other_returns = calc_daily_returns_of_estu(other_prices)
-    corr = calc_factor_correlation(factor_rets, other_returns[corr_ticker], lookback=252)
-    print(f'\nTest Ticker Correlation with {corr_ticker} (last year): {round(corr, 2)}')
-    print(f'Average momentum loading for {corr_ticker}: {round(norm_mom_scores[corr_ticker].mean(), 2)}')
+    for corr_ticker in ['NVDA', 'META', 'VZ', 'INTC']:
+        other_prices = pull_daily_prices_of_estu([corr_ticker], start='2020-01-01')
+        other_returns = calc_daily_returns_of_estu(other_prices)
+        corr = calc_factor_correlation(factor_rets, other_returns[corr_ticker], lookback=252)
+        print(f'\nTest Ticker Correlation with {corr_ticker} (last year): {round(corr, 2)}')
+        print(f'Average momentum loading for {corr_ticker}: {round(norm_mom_scores[corr_ticker].mean(), 2)}')
 
     # 9. Momentum Exposure of a Single Stock Over Time
 
@@ -728,6 +801,13 @@ if __name__ == '__main__':
     '''
         Factory
     '''
-    # run across various lookbacks, weighting schemes, quantiles -- compare stats of various factors
-    results_df = run_momentum_grid_search(rets)
-    results_df.to_excel(f'{DATA_DIRECTORY}momentum_grid_search_results_{estu}.xlsx')
+    # todo: need to update this to use the new functions above
+    # # run across various lookbacks, weighting schemes, quantiles -- compare stats of various factors
+    # results_df = run_momentum_grid_search(rets)
+    # results_df.to_excel(f'{DATA_DIRECTORY}momentum_grid_search_results_{estu}.xlsx')
+
+    ''' ========================================================================================
+        TEST AREA
+    ======================================================================================== '''
+
+
