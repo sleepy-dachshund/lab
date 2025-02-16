@@ -41,6 +41,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore")
 
 DATA_DIRECTORY = 'data_dump/'
 
@@ -455,6 +457,8 @@ def calc_quantile_name_turnover(factor_loadings_df, quantiles=4):
     return turnover_df
 
 
+# todo: add % GMV turnover calc here.. using mcap weightings if available
+
 ''' ===============================================================================================================
         7. Summarize factor returns
 =============================================================================================================== '''
@@ -657,9 +661,10 @@ def calc_factor_correlation(factor_rets_df, other_rets_df, lookback=None):
 def run_momentum_grid_search(
         returns_df,
         horizons=[5, 10, 21, 63, 126, 252],
-        weighting_schemes=['exp'], # ['uniform', 'trapezoidal', 'exp']
+        weighting_schemes=['uniform', 'trapezoidal', 'exp'],
         quantiles_list=[4, 6, 10],
-        lag=None
+        lag=None,
+        market_caps=None
 ):
     """
     grid search over lookback horizons, weighting schemes, and quantiles.
@@ -682,21 +687,42 @@ def run_momentum_grid_search(
                 # wonky dynamic lag
                 if lookback < 30:
                     lag = 0
+                    ramp_up = lookback / 5 * 2
+                    ramp_down = lookback / 5 * 2
                 elif lookback < 70:
                     lag = 10
+                    ramp_up = 5
+                    ramp_down = 5
                 else:
                     lag = 21
+                    ramp_up = 10
+                    ramp_down = 10
 
+                # pass on exponential weighting for lookbacks < 10... not sensible
+                if lookback <= 9 & weighting_scheme == 'exp':
+                    continue
 
-                mom_scores, _ = calc_momentum_score(
-                    returns_df,
-                    lookback=lookback,
-                    weighting_scheme=weighting_scheme,
-                    lag=lag
-                )
+                if weighting_scheme == 'exp':
+                    mom_scores_raw, weights = weighted_average_returns(returns_df, weights_exponential, lookback,
+                                                                       lag=lag,
+                                                                       ramp_up=ramp_up, ramp_down=ramp_down,
+                                                                       half_life=int(lookback/2))
+                elif weighting_scheme == 'trapezoidal':
+                    mom_scores_raw, weights = weighted_average_returns(returns_df, weights_trapezoidal, lookback,
+                                                                       lag=lag,
+                                                                       ramp_up=ramp_up, ramp_down=ramp_down)
+                else:
+                    mom_scores_raw, weights = weighted_average_returns(returns_df, weights_equal, lookback,
+                                                                       lag=lag)
 
                 # 2. norm
-                norm_mom_scores = normalize_factor_loadings_by_day(mom_scores)
+                if market_caps is not None:
+                    daily_mcap_weighted_mean = calc_daily_weighted_mean_score(mom_scores_raw, market_caps,
+                                                                              method='sqrt')
+                    daily_std = mom_scores_raw.std(axis=1)
+                    norm_mom_scores = mom_scores_raw.sub(daily_mcap_weighted_mean, axis=0).div(daily_std, axis=0)
+                else:
+                    norm_mom_scores = normalize_factor_loadings_by_day(mom_scores_raw)
 
                 # 3. turnover
                 quantile_turnover_names = calc_quantile_name_turnover(norm_mom_scores, quantiles=q)
@@ -801,13 +827,6 @@ if __name__ == '__main__':
     '''
         Factory
     '''
-    # todo: need to update this to use the new functions above
-    # # run across various lookbacks, weighting schemes, quantiles -- compare stats of various factors
-    # results_df = run_momentum_grid_search(rets)
-    # results_df.to_excel(f'{DATA_DIRECTORY}momentum_grid_search_results_{estu}.xlsx')
-
-    ''' ========================================================================================
-        TEST AREA
-    ======================================================================================== '''
-
-
+    # run across various lookbacks, weighting schemes, quantiles -- compare stats of various factors
+    results_df = run_momentum_grid_search(rets, market_caps=hist_market_caps)
+    results_df.to_excel(f'{DATA_DIRECTORY}momentum_grid_search_results_{estu}_test.xlsx')
