@@ -21,6 +21,12 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
 EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
 RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL')
 
+# Validate required environment variables
+required_vars = ['VANTAGE_API_KEY', 'SENDER_EMAIL', 'EMAIL_APP_PASSWORD', 'RECIPIENT_EMAIL']
+missing_vars = [var for var in required_vars if not os.environ.get(var)]
+if missing_vars:
+    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
