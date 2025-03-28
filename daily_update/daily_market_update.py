@@ -16,10 +16,10 @@ from matplotlib.figure import Figure
 from dateutil.relativedelta import relativedelta
 
 # Configuration
-VANTAGE_API_KEY = os.environ.get('VANTAGE_API_KEY', 'my_api_key')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'my_email@gmail.com')
-EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD', 'aaaa bbbb cccc dddd')
-RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL', 'my_email@gmail.com')
+VANTAGE_API_KEY = os.environ.get('VANTAGE_API_KEY')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
+EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL')
 
 # Setup logging
 logging.basicConfig(
