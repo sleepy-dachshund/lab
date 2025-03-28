@@ -34,6 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+logger.info(f"API key check: length={len(VANTAGE_API_KEY) if VANTAGE_API_KEY else 0}, first_chars='{VANTAGE_API_KEY[:4] if VANTAGE_API_KEY and len(VANTAGE_API_KEY) >= 4 else ''}', has_leading_whitespace={VANTAGE_API_KEY[0].isspace() if VANTAGE_API_KEY else False}, has_trailing_whitespace={VANTAGE_API_KEY[-1].isspace() if VANTAGE_API_KEY else False}")
 
 def fetch_alpha_vantage_data(symbol: str, output_size: str = 'full') -> pd.DataFrame:
     """
