@@ -15,16 +15,20 @@ import logging
 from matplotlib.figure import Figure
 from dateutil.relativedelta import relativedelta
 
-# Configuration
-# VANTAGE_API_KEY = os.environ.get('VANTAGE_API_KEY')
-# SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
-# EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
-# RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL')
+# Access repository secrets from .yml file env
+VANTAGE_API_KEY = os.environ.get('VANTAGE_API_KEY')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
+EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL')
 
-VANTAGE_API_KEY = 'OO3JRY42FB0B4U2S'
-SENDER_EMAIL = 'bbmcnair1@gmail.com'
-EMAIL_APP_PASSWORD = 'urfh mkwj jsky qusc'
-RECIPIENT_EMAIL = 'bbmcnair1@gmail.com'
+# Check environment variables / secrets
+print(f"Sending email from {SENDER_EMAIL} to {RECIPIENT_EMAIL}")
+print(f"API Key length: {len(VANTAGE_API_KEY)}")
+print(f"API Key type: {type(VANTAGE_API_KEY)}")
+print(f"API key: {VANTAGE_API_KEY[:4]}...{VANTAGE_API_KEY[-4:]}")
+assert isinstance(VANTAGE_API_KEY, str), "API key should be a string"
+assert len(VANTAGE_API_KEY) == len('OO3JRY42FB0B4U2S'), "API key should be 16 characters long"
+assert VANTAGE_API_KEY == 'OO3JRY42FB0B4U2S', "API key is incorrect"
 
 # Validate required environment variables
 required_vars = ['VANTAGE_API_KEY', 'SENDER_EMAIL', 'EMAIL_APP_PASSWORD', 'RECIPIENT_EMAIL']
@@ -39,7 +43,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# logger.info(f"API key check: length={len(VANTAGE_API_KEY) if VANTAGE_API_KEY else 0}, first_chars='{VANTAGE_API_KEY[:4] if VANTAGE_API_KEY and len(VANTAGE_API_KEY) >= 4 else ''}', has_leading_whitespace={VANTAGE_API_KEY[0].isspace() if VANTAGE_API_KEY else False}, has_trailing_whitespace={VANTAGE_API_KEY[-1].isspace() if VANTAGE_API_KEY else False}")
 
 def fetch_alpha_vantage_data(symbol: str, output_size: str = 'full') -> pd.DataFrame:
     """
