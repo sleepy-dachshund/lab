@@ -21,15 +21,6 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
 EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
 RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL')
 
-# Check environment variables / secrets
-print(f"Sending email from {SENDER_EMAIL} to {RECIPIENT_EMAIL}")
-print(f"API Key length: {len(VANTAGE_API_KEY)}")
-print(f"API Key type: {type(VANTAGE_API_KEY)}")
-print(f"API key: {VANTAGE_API_KEY[:4]}...{VANTAGE_API_KEY[-4:]}")
-assert isinstance(VANTAGE_API_KEY, str), "API key should be a string"
-assert len(VANTAGE_API_KEY) == len('OO3JRY42FB0B4U2S'), "API key should be 16 characters long"
-assert VANTAGE_API_KEY == 'OO3JRY42FB0B4U2S', "API key is incorrect"
-
 # Validate required environment variables
 required_vars = ['VANTAGE_API_KEY', 'SENDER_EMAIL', 'EMAIL_APP_PASSWORD', 'RECIPIENT_EMAIL']
 missing_vars = [var for var in required_vars if not os.environ.get(var)]
