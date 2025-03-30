@@ -15,17 +15,23 @@ import logging
 from matplotlib.figure import Figure
 from dateutil.relativedelta import relativedelta
 
-# Access repository secrets from .yml file env
-VANTAGE_API_KEY = os.environ.get('VANTAGE_API_KEY')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
-EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
-RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL')
+try:  # Try to import local config first (for local development)
+    import config
+    VANTAGE_API_KEY = config.VANTAGE_API_KEY
+    SENDER_EMAIL = config.SENDER_EMAIL
+    EMAIL_APP_PASSWORD = config.EMAIL_APP_PASSWORD
+    RECIPIENT_EMAIL = config.RECIPIENT_EMAIL
+except ImportError:  # Fall back to environment variables (for GitHub Actions) -- repo secrets from .yml file env
+    VANTAGE_API_KEY = os.environ.get('VANTAGE_API_KEY')
+    SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
+    EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+    RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL')
 
-# Validate required environment variables
-required_vars = ['VANTAGE_API_KEY', 'SENDER_EMAIL', 'EMAIL_APP_PASSWORD', 'RECIPIENT_EMAIL']
-missing_vars = [var for var in required_vars if not os.environ.get(var)]
-if missing_vars:
-    raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
+    # Validate required environment variables
+    required_vars = ['VANTAGE_API_KEY', 'SENDER_EMAIL', 'EMAIL_APP_PASSWORD', 'RECIPIENT_EMAIL']
+    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    if missing_vars:
+        raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 # Setup logging
 logging.basicConfig(
@@ -899,7 +905,7 @@ def send_email_report(
         plots: Dict[str, Dict[str, Figure]]
 ) -> None:
     """
-    Send an email with the financial analysis report.
+    Send an email with the market analysis report.
 
     Parameters
     ----------
@@ -916,7 +922,7 @@ def send_email_report(
 
     # Create email
     msg = MIMEMultipart('related')
-    msg['Subject'] = f'Daily Financial Report - {datetime.now().strftime("%Y-%m-%d")}'
+    msg['Subject'] = f'Daily Market Report - {datetime.now().strftime("%Y-%m-%d")}'
     msg['From'] = SENDER_EMAIL
     msg['To'] = RECIPIENT_EMAIL
 
@@ -935,7 +941,7 @@ def send_email_report(
         </style>
     </head>
     <body>
-        <h1>Daily Financial Report - {datetime.now().strftime("%Y-%m-%d")}</h1>
+        <h1>Daily Market Report - {datetime.now().strftime("%Y-%m-%d")}</h1>
     """
 
     # Add data for each symbol
@@ -1050,6 +1056,9 @@ def process_symbol(symbol: str) -> Tuple[Dict[str, Any], Dict[str, Figure]]:
     df = calculate_volatility(df, windows=[10, 30, 60, 90])
     df = calculate_drawdown(df)
 
+    # Other daily values
+    # todo: add more data here
+
     # Store the data
     symbol_data = {
         'latest_price': df['adj_close'].iloc[-1],
@@ -1068,6 +1077,7 @@ def process_symbol(symbol: str) -> Tuple[Dict[str, Any], Dict[str, Figure]]:
         'volatility': create_volatility_plot(df, symbol),
         'fast_rsi': create_fast_rsi_plot(df, symbol),
         'drawdown': create_drawdown_plot(df, symbol)
+        # todo: add more plots here
     }
 
     return symbol_data, plots
@@ -1075,9 +1085,9 @@ def process_symbol(symbol: str) -> Tuple[Dict[str, Any], Dict[str, Figure]]:
 
 def main() -> None:
     """
-    Main function to run the daily financial report generation.
+    Main function to run the daily market report generation.
     """
-    symbols = ['SPY', 'QQQ', 'RSP', 'IWM', 'AMZN', 'META', 'BRK-B']
+    symbols = ['SPY', 'QQQ', 'IWM', 'RSP', 'XLI', 'XLY', 'XLP', 'XLE', 'XLF', 'XLV']
     all_symbol_data = {}
     all_plots = {}
 
