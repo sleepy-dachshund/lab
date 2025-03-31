@@ -100,7 +100,7 @@ def fetch_alpha_vantage_prices(symbol: str, output_size: str = 'full') -> pd.Dat
             '5. adjusted close': 'adj_close',
             '6. volume': 'volume',
         }, inplace=True)
-        df = df[['adj_close', 'volume', 'open', 'high', 'low', 'close']].copy()  # Keep more price types if needed later
+        df = df[['adj_close', 'volume']].copy()
         df.index = pd.to_datetime(df.index)
         df.sort_index(inplace=True)
         df['date'] = df.index
@@ -137,20 +137,19 @@ def fetch_alpha_vantage_overviews(symbol: str) -> pd.DataFrame:
     logger.info(f"Fetching overview data for {symbol}...")
     url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={VANTAGE_API_KEY}"
     try:
-        r = requests.get(url, timeout=30) # Add timeout
+        r = requests.get(url, timeout=30)  # Add timeout
         r.raise_for_status()
         data = r.json()
 
         if "Error Message" in data:
             logger.error(f"API Error fetching overview for {symbol}: {data['Error Message']}")
             return pd.DataFrame()
-        if not data or 'Symbol' not in data: # Check if data is empty or lacks essential key
-             if "Information" in data:
-                 logger.warning(f"API Info for {symbol}: {data['Information']}. Might be rate limited.")
-             else:
+        if not data or 'Symbol' not in data:  # Check if data is empty or lacks essential key
+            if "Information" in data:
+                logger.warning(f"API Info for {symbol}: {data['Information']}. Might be rate limited.")
+            else:
                 logger.error(f"Unexpected or empty overview response for {symbol}: {data}")
-             return pd.DataFrame()
-
+            return pd.DataFrame()
 
         id_cols = ['Symbol', 'Name', 'Sector']
         numeric_cols = ['MarketCapitalization', 'AnalystTargetPrice', 'EPS',
@@ -161,11 +160,11 @@ def fetch_alpha_vantage_overviews(symbol: str) -> pd.DataFrame:
         # Ensure all expected columns exist in the response, fill with None if missing
         overview_data = {col: data.get(col) for col in id_cols + numeric_cols}
 
-        df = pd.DataFrame([overview_data]) # Create DataFrame from dict
+        df = pd.DataFrame([overview_data])  # Create DataFrame from dict
         df.set_index('Symbol', inplace=True)
 
         for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce') # 'coerce' turns errors into NaT/NaN
+            df[col] = pd.to_numeric(df[col], errors='coerce')  # 'coerce' turns errors into NaT/NaN
 
         logger.info(f"Successfully fetched overview data for {symbol}")
         return df
@@ -212,11 +211,11 @@ def calculate_trailing_returns(prices: pd.DataFrame, column: str = 'adj_close') 
         if len(prices) > days:
             past_price = prices[column].iloc[-days-1]
             if pd.notna(past_price) and past_price != 0:
-                 returns[f'Return_{name}'] = (latest_price / past_price) - 1
+                returns[f'Return_{name}'] = (latest_price / past_price) - 1
             else:
-                 returns[f'Return_{name}'] = np.nan # Avoid division by zero or NaN
+                returns[f'Return_{name}'] = np.nan  # Avoid division by zero or NaN
         else:
-            returns[f'Return_{name}'] = np.nan # Not enough data
+            returns[f'Return_{name}'] = np.nan  # Not enough data
 
     return pd.Series(returns)
 
@@ -387,8 +386,8 @@ def calculate_correlation_matrix(price_data: Dict[str, pd.DataFrame], period: st
         # Calculate percentage change over the period
         period_return = df[column].pct_change(periods=num_days).dropna()
         if not period_return.empty:
-             returns_dfs[symbol] = period_return
-             valid_symbols.append(symbol)
+            returns_dfs[symbol] = period_return
+            valid_symbols.append(symbol)
         else:
             logger.warning(f"Skipping {symbol} for correlation: calculated returns are empty.")
 
@@ -397,7 +396,7 @@ def calculate_correlation_matrix(price_data: Dict[str, pd.DataFrame], period: st
         return None
 
     # Combine returns into a single DataFrame, aligning by date
-    combined_returns = pd.concat(returns_dfs, axis=1).dropna() # Drop rows where any ticker has NaN return
+    combined_returns = pd.concat(returns_dfs, axis=1).dropna()  # Drop rows where any ticker has NaN return
 
     if combined_returns.empty:
         logger.warning("Combined returns DataFrame is empty after alignment and dropping NaNs.")
@@ -413,6 +412,7 @@ def calculate_correlation_matrix(price_data: Dict[str, pd.DataFrame], period: st
 ======================================================================================================= '''
 
 
+# todo: decide if we want to use this script as a screener rather than a summary of input tickers
 def filter_tickers_for_summary(all_data: pd.DataFrame, metric: str, n_top: int = 10, n_bottom: int = 10) -> List[str]:
     """
     Placeholder function to select tickers for focused tables/plots.
@@ -439,7 +439,7 @@ def filter_tickers_for_summary(all_data: pd.DataFrame, metric: str, n_top: int =
 
     if all_data.empty or metric not in all_data.columns:
         logger.warning(f"Cannot filter tickers. DataFrame empty or metric '{metric}' not found.")
-        return all_data.index.tolist() # Return all available tickers if filtering fails
+        return all_data.index.tolist()  # Return all available tickers if filtering fails
 
     # Ensure metric column is numeric for sorting
     if not pd.api.types.is_numeric_dtype(all_data[metric]):
@@ -473,7 +473,7 @@ def fig_to_base64(fig: Figure) -> str:
     Convert a matplotlib figure to a base64 encoded string for embedding in HTML.
     """
     buf = BytesIO()
-    fig.savefig(buf, format='png', dpi=100, bbox_inches='tight') # Use bbox_inches='tight'
+    fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')  # Use bbox_inches='tight'
     plt.close(fig) # Close the figure to free memory
     buf.seek(0)
     img_str = base64.b64encode(buf.read()).decode('utf-8')
