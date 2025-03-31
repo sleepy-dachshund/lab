@@ -794,7 +794,8 @@ def create_html_table(df: pd.DataFrame, columns_formats: Dict[str, Tuple[str, st
 
 def send_email_report(
         html_content: str,
-        image_cids: Dict[str, str] # Dictionary mapping placeholder CID to base64 string
+        image_cids: Dict[str, str], # Dictionary mapping placeholder CID to base64 string
+        subject_text: str = 'Daily Ticker Update'
 ) -> None:
     """
     Sends an email with the market analysis report including embedded images.
@@ -810,7 +811,7 @@ def send_email_report(
     logger.info("Preparing email report...")
 
     msg = MIMEMultipart('related')
-    msg['Subject'] = f'Daily Ticker Update - {datetime.now().strftime("%Y-%m-%d")}'
+    msg['Subject'] = f'{subject_text} - {datetime.now().strftime("%Y-%m-%d")}'
     msg['From'] = SENDER_EMAIL
     msg['To'] = RECIPIENT_EMAIL
 
@@ -853,7 +854,7 @@ def send_email_report(
 ======================================================================================================= '''
 
 
-def main():
+def main(symbol_list: List[str], market_indices: List[str], update_name: str) -> None:
     """
     Main function to run the analysis and generate the report.
     """
@@ -865,9 +866,8 @@ def main():
     API_CALLS_PER_TICKER = 2
 
     # Use a smaller list for testing, expand as needed
-    INPUT_TICKERS = ['AMZN', 'META', 'AAPL', 'BRK-B', 'GOOG', 'TSM', 'MSFT', 'ASML',
-                     'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT', 'NVDA']  # Even smaller test list
-    MAJOR_INDICES = ['SPY', 'QQQ', 'IWM']
+    INPUT_TICKERS = symbol_list
+    MAJOR_INDICES = market_indices
     ALL_SYMBOLS = list(set(INPUT_TICKERS + MAJOR_INDICES))  # Ensure unique symbols
 
     # Sector Colors (Example - customize as needed)
@@ -911,10 +911,9 @@ def main():
                 overview['Sector'] = 'OTHER'
             overview_data[symbol] = overview
 
-        # Optional: Add a small delay to avoid hitting API rate limits
-        if len(ALL_SYMBOLS) - 1 > MAX_VANTAGE_API_RPM / API_CALLS_PER_TICKER:
-            import time
-            time.sleep(60 / (MAX_VANTAGE_API_RPM / API_CALLS_PER_TICKER))
+        # Add small delay to avoid hitting API rate limits
+        import time
+        time.sleep(60 / (MAX_VANTAGE_API_RPM / API_CALLS_PER_TICKER))
 
     # Remove failed symbols from the list to process
     active_symbols = [s for s in ALL_SYMBOLS if s not in failed_symbols]
@@ -1136,7 +1135,7 @@ def main():
         </style>
     </head>
     <body>
-        <h1>Daily Ticker Update - {datetime.now().strftime("%Y-%m-%d")}</h1>
+        <h1>{update_name} - {datetime.now().strftime("%Y-%m-%d")}</h1>
 
         <div class="toc">
             <h3>Contents</h3>
@@ -1205,7 +1204,7 @@ def main():
     if not SENDER_EMAIL or not EMAIL_APP_PASSWORD or not RECIPIENT_EMAIL:
          logger.error("Email credentials or recipient not configured. Skipping email sending.")
     else:
-        send_email_report(html_body, plot_cids)
+        send_email_report(html_body, plot_cids, subject_text=update_name)
 
 
 ''' =======================================================================================================
@@ -1214,5 +1213,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    major_indices = ['SPY', 'QQQ', 'IWM', 'TLT', 'GLD']
+    coverage_set = ['AMZN', 'META', 'AAPL', 'BRK-B', 'GOOG', 'TSM', 'MSFT', 'ASML',
+                    'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT', 'NVDA']
+    watchlist_set = ['TTWO', 'UNH', 'ALK', 'WYNN', 'DD',
+                     'EQIX', 'PLD', 'AMT',
+                     'RTX', 'UBER', 'HON', 'DE',
+                     'V', 'AXP', 'JPM',
+                     'XOM', 'BP', 'CVX', 'VLO',
+                     'T', 'DIS', 'FDX', 'HD', 'LOW', 'COST', 'WMT', 'NKE', 'JNJ', 'LLY']
+    main(symbol_list=coverage_set, market_indices=major_indices, update_name="Daily Coverage Update")
+    main(symbol_list=watchlist_set, market_indices=major_indices, update_name="Daily Watchlist Update")
+
     logger.info("Script execution finished.")
