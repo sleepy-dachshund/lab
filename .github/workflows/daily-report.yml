@@ -2,8 +2,10 @@ name: Daily Update  # The name displayed in GitHub UI
 
 on:  # Defines when this workflow will run
   schedule:  # Runs on a schedule
-    - cron: '0 8 * * *'  # First schedule = 2-3:00 AM Eastern Time (8:00 UTC)
-    - cron: '45 22 * * *'  # Second schedule = 4-5:45 PM Eastern Time (22:45 UTC)
+    - cron: '0 8 * * 1,6'    # 3:00 AM Eastern (8:00 UTC) on Mondays and Saturdays
+    - cron: '0 15 * * 1-5'   # 10:00 AM Eastern (15:00 UTC) Monday through Friday
+    - cron: '0 18 * * 1-5'   # 1:00 PM Eastern (18:00 UTC) Monday through Friday
+    - cron: '30 21 * * 1-5'  # 4:30 PM Eastern (21:30 UTC) Monday through Friday
   workflow_dispatch:  # Allow manual trigger from GitHub UI
 
 jobs:  # Contains all the jobs that will run in this workflow
