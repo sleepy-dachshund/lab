@@ -3,6 +3,7 @@ import io
 import requests
 import numpy as np
 import pandas as pd
+from pandas.tseries.offsets import BDay
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.colors as mcolors
@@ -175,6 +176,88 @@ def fetch_alpha_vantage_overviews(symbol: str) -> pd.DataFrame:
     except Exception as e:
         logger.error(f"An unexpected error occurred fetching overview data for {symbol}: {e}")
         return pd.DataFrame()
+
+
+def fetch_realtime_bulk_quotes(symbols: List[str]) -> Dict[str, Tuple[Optional[pd.Timestamp], Optional[float]]]:
+    """
+    Fetch realtime bulk quotes from Alpha Vantage for a list of symbols.
+
+    Prioritizes 'close' price (live market price) if available,
+    otherwise uses 'extended_hours_quote'.
+
+    Parameters
+    ----------
+    symbols : List[str]
+        List of stock symbols (max 100 per call recommended by Alpha Vantage).
+
+    Returns
+    -------
+    Dict[str, Tuple[Optional[pd.Timestamp], Optional[float]]]
+        Dictionary mapping each symbol to a tuple containing:
+        (Timestamp of the quote (Eastern Time), Price).
+        Returns (None, None) if no valid quote found for a symbol.
+    """
+    logger.info(f"Fetching realtime bulk quotes for {len(symbols)} symbols...")
+    live_quotes = {}
+    # Alpha Vantage suggests max 100 symbols per bulk request
+    symbols_string = ','.join(symbols)
+    url = f'https://www.alphavantage.co/query?function=REALTIME_BULK_QUOTES&symbol={symbols_string}&apikey={VANTAGE_API_KEY}'
+
+    try:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+
+        if "Error Message" in data:
+            logger.error(f"API Error fetching bulk quotes: {data['Error Message']}")
+            return {s: (None, None) for s in symbols} # Return None for all on error
+        if "data" not in data or not data["data"]:
+            logger.warning(f"No 'data' field in bulk quote response or empty: {data}")
+            return {s: (None, None) for s in symbols}
+
+        quote_df = pd.DataFrame(data['data'])
+        # Convert relevant columns, coercing errors
+        quote_df['timestamp'] = pd.to_datetime(quote_df['timestamp'], errors='coerce')
+        numeric_cols = ['close', 'extended_hours_quote']
+        for col in numeric_cols:
+            quote_df[col] = pd.to_numeric(quote_df[col], errors='coerce')
+
+        for index, row in quote_df.iterrows():
+            symbol = row['symbol']
+            timestamp = row['timestamp']
+            live_price = row['close']
+            extended_price = row['extended_hours_quote']
+
+            price_to_use = None
+            if pd.notna(live_price):
+                price_to_use = live_price
+                logger.debug(f"Using live quote for {symbol}: {price_to_use} at {timestamp}")
+            elif pd.notna(extended_price):
+                price_to_use = extended_price
+                logger.debug(f"Using extended hours quote for {symbol}: {price_to_use} at {timestamp}")
+            else:
+                logger.warning(f"No valid live or extended quote found for {symbol}.")
+
+            if pd.notna(timestamp) and price_to_use is not None:
+                live_quotes[symbol] = (timestamp, price_to_use)
+            else:
+                live_quotes[symbol] = (None, None) # Store None if data invalid
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error fetching bulk quotes: {e}")
+        return {s: (None, None) for s in symbols}
+    except Exception as e:
+        logger.error(f"An unexpected error occurred fetching bulk quotes: {e}")
+        return {s: (None, None) for s in symbols}
+
+    # Ensure all requested symbols have an entry, even if fetching failed for them
+    for s in symbols:
+        if s not in live_quotes:
+            live_quotes[s] = (None, None)
+            logger.warning(f"Symbol {s} not found in bulk quote response.")
+
+    logger.info(f"Finished fetching realtime quotes. Found data for {len([q for q in live_quotes.values() if q[0] is not None])} symbols.")
+    return live_quotes
 
 
 ''' =======================================================================================================
@@ -889,9 +972,39 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     overview_data: Dict[str, pd.DataFrame] = {}
     failed_symbols = []
 
+    # Fetch live quotes for all symbols at the start
+    latest_quotes = fetch_realtime_bulk_quotes(ALL_SYMBOLS)
+
     for symbol in ALL_SYMBOLS:
         prices = fetch_alpha_vantage_prices(symbol)
-        # todo: ETFs and indices may not have overview data
+
+        # Append live quote if available
+        if symbol in latest_quotes:
+            live_timestamp, live_price = latest_quotes[symbol]
+
+            if live_price is not None and not prices.empty:
+                last_historical_date = prices.index.max().normalize()  # Get last date, ignore time
+                # Calculate the next business day strictly after the last historical date
+                next_bday = (last_historical_date + BDay(1)).normalize()
+
+                # Create a new row with the live price at the calculated next business day
+                new_row_data = {'adj_close': live_price}
+                # Add NaNs for other columns if they exist in `prices`
+                for col in prices.columns:
+                    if col not in new_row_data:
+                        new_row_data[col] = np.nan
+
+                new_row = pd.DataFrame(new_row_data, index=[next_bday])
+
+                # Append the new row if the date doesn't already exist
+                if next_bday not in prices.index:
+                    prices = pd.concat([prices, new_row])
+                    prices.sort_index(inplace=True)  # Ensure order is maintained
+                    logger.info(f"Appended live quote for {symbol} for date {next_bday.strftime('%Y-%m-%d')}")
+                else:
+                    logger.warning(
+                        f"Skipping live quote append for {symbol} - date {next_bday.strftime('%Y-%m-%d')} already exists.")
+
         overview = fetch_alpha_vantage_overviews(symbol)
 
         if prices.empty:
@@ -1213,16 +1326,21 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
 
 
 if __name__ == "__main__":
+
+    # Index ETFs to include in the daily update
     major_indices = ['SPY', 'QQQ', 'IWM', 'TLT', 'GLD']
+
+    # Stocks to cover in the daily update(s)
     coverage_set = ['AMZN', 'META', 'AAPL', 'BRK-B', 'GOOG', 'TSM', 'MSFT', 'ASML',
                     'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT', 'NVDA']
-    watchlist_set = ['TTWO', 'UNH', 'ALK', 'WYNN', 'DD',
-                     'EQIX', 'PLD', 'AMT',
-                     'RTX', 'UBER', 'HON', 'DE',
-                     'V', 'AXP', 'JPM',
-                     'XOM', 'BP', 'CVX', 'VLO',
+    watchlist_set = ['TTWO', 'UNH', 'ALK', 'DD', 'EQIX', 'PLD', 'AMT',
+                     'RTX', 'HON', 'DE', 'V', 'AXP', 'JPM', 'XOM', 'BP', 'CVX', 'VLO',
                      'T', 'DIS', 'FDX', 'HD', 'LOW', 'COST', 'WMT', 'NKE', 'JNJ', 'LLY']
-    main(symbol_list=coverage_set, market_indices=major_indices, update_name="Daily Coverage Update")
+
+    # todo: add sector ETFs to data pull, market adjust their returns, and use to adjust stock returns
+    # todo: for coverage set, add ability to input dictionary w/ share count for each stock to calculate portfolio return
+
+    main(symbol_list=coverage_set, market_indices=major_indices, update_name="Daily Coverage Update")  # update_name is just the subject line of the email
     main(symbol_list=watchlist_set, market_indices=major_indices, update_name="Daily Watchlist Update")
 
     logger.info("Script execution finished.")
