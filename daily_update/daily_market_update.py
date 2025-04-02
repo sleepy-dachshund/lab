@@ -21,8 +21,10 @@ try:  # Try to import local config first (for local development)
     SENDER_EMAIL = config.SENDER_EMAIL
     EMAIL_APP_PASSWORD = config.EMAIL_APP_PASSWORD
     RECIPIENT_EMAIL = config.RECIPIENT_EMAIL
+    MAX_VANTAGE_API_RPM = config.MAX_VANTAGE_API_RPM
 except ImportError:  # Fall back to environment variables (for GitHub Actions) -- repo secrets from .yml file env
     VANTAGE_API_KEY = os.environ.get('VANTAGE_API_KEY')
+    MAX_VANTAGE_API_RPM = 148
     SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
     EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
     RECIPIENT_EMAIL = os.environ.get('RECIPIENT_EMAIL')
@@ -98,6 +100,9 @@ def fetch_alpha_vantage_data(symbol: str, output_size: str = 'full') -> pd.DataF
     df['date'] = df.index
 
     logger.info(f"Successfully fetched data for {symbol}, {len(df)} rows")
+
+    import time
+    time.sleep(60 / (MAX_VANTAGE_API_RPM))  # Sleep to avoid rate limiting
 
     return df
 
@@ -861,6 +866,106 @@ def create_drawdown_plot(df: pd.DataFrame, symbol: str, years: int = 2) -> Figur
     return fig
 
 
+def format_value(value: Any, format_type: str = 'float') -> str:
+    """Helper to format values for HTML tables."""
+    if pd.isna(value):
+        return "N/A"
+    try:
+        if format_type == 'percent':
+            # Multiply by 100 only if it's not already a percentage from pct_change
+            # Assuming input like 0.05 needs to become 5.00%
+            # If pct_change already multiplied by 100, remove the * 100
+            return f"{value * 100:.2f}%" # Adjust if your pct_change is already * 100
+        elif format_type == 'float':
+            return f"{value:.2f}"
+        elif format_type == 'integer':
+            return f"{int(value):,d}"  # Format as integer with commas
+        elif format_type == 'currency':
+            return f"${value:,.2f}"  # Format as currency
+        elif format_type == 'large_number':  # Format large numbers (e.g., Market Cap)
+            if abs(value) >= 1e12:
+                return f"${value/1e12:.2f} T"
+            elif abs(value) >= 1e9:
+                return f"${value/1e9:.2f} B"
+            elif abs(value) >= 1e6:
+                return f"${value/1e6:.2f} M"
+            else:
+                 return f"${value:,.0f}"
+        elif format_type == 'date':
+            if isinstance(value, pd.Timestamp):
+                return value.strftime('%Y-%m-%d')
+            else:
+                return str(value)  # Fallback
+        else:
+            return str(value)
+    except (ValueError, TypeError):
+        return str(value)  # Fallback if formatting fails
+
+
+def create_html_table(df: pd.DataFrame, columns_formats: Dict[str, Tuple[str, str]], title: str) -> str:
+    """
+    Generates an HTML table from a DataFrame with specified column formatting.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame to convert to HTML table. Index is assumed to be Symbol or similar identifier.
+    columns_formats : Dict[str, Tuple[str, str]]
+        Dictionary mapping DataFrame column names to a tuple: (Display Name, Format Type).
+        Format Types: 'percent', 'float', 'integer', 'currency', 'large_number', 'date', 'string'.
+    title : str
+        Title for the table.
+
+    Returns
+    -------
+    str
+        HTML string representation of the table.
+    """
+    if df.empty:
+        return f"<h2>{title}</h2><p>No data available.</p>"
+
+    html = f"<h2>{title}</h2>\n"
+    # Use border=1 cellpadding=5 cellspacing=0 style=border-collapse: collapse; like the other table
+    html += "<table border=\"1\" cellpadding=\"5\" cellspacing=\"0\" style=\"border-collapse: collapse; width: auto; margin-bottom: 20px;\">\n<thead>\n"
+    # Add header row styling
+    html += "<tr style=\"background-color: #f2f2f2;\">\n"
+    # Add Index Header
+    index_header = df.index.name if df.index.name else "Symbol" # Use 'Symbol' if no index name
+    html += f"<th>{index_header}</th>\n"
+    # Add Column Headers
+    display_names = [cf[0] for cf in columns_formats.values()]
+    html += "".join(f"<th>{name}</th>\n" for name in display_names)
+    html += "</tr>\n</thead>\n<tbody>\n"
+
+    # Add Rows
+    for index, row in df.iterrows():
+        html += "<tr>\n"
+        html += f"<td>{index}</td>\n" # Add index value first
+        for col, (display_name, fmt) in columns_formats.items():
+            if col in row:
+                # Add color styling for return/drawdown columns
+                cell_style = ""
+                # Assuming pct_change values are like 0.01 for 1%
+                value = row[col] # Get the raw value
+                if pd.notna(value) and ('Return' in col or 'Drawdown' in col):
+                    # Check the raw value before formatting
+                    if value > 0:
+                        cell_style = ' style="color: green;"'
+                    elif value < 0:
+                        # For Drawdown, negative is expected, maybe don't make it red? Optional.
+                        cell_style = ' style="color: red;"'
+
+                # Apply formatting using the helper function
+                formatted_val = format_value(value, fmt)
+                html += f"<td{cell_style}>{formatted_val}</td>\n"
+            else:
+                html += "<td>N/A</td>\n" # Column not present in this row
+    html += "</tr>\n"
+
+    html += "</tbody>\n</table>\n"
+    return html
+
+
 def create_performance_table(
         symbol: str,
         latest_price: float,
@@ -984,31 +1089,28 @@ def fig_to_base64(fig: Figure) -> str:
 
 def send_email_report(
         symbol_data: Dict[str, Dict[str, Any]],
-        plots: Dict[str, Dict[str, Figure]]
+        plots: Dict[str, Dict[str, Figure]],
+        summary_table_html: str  # Add new parameter
 ) -> None:
     """
-    Send an email with the market analysis report.
-
+    Send an email with the market analysis report, including a summary table.
     Parameters
     ----------
     symbol_data : Dict[str, Dict[str, Any]]
         Dictionary containing data for each symbol.
     plots : Dict[str, Dict[str, Figure]]
         Dictionary containing plots for each symbol.
-
-    Returns
-    -------
-    None
+    summary_table_html : str
+        HTML string for the summary table to be placed at the top.
     """
     logger.info("Preparing email report...")
 
-    # Create email
     msg = MIMEMultipart('related')
     msg['Subject'] = f'Daily Market Report - {datetime.now().strftime("%Y-%m-%d")}'
     msg['From'] = SENDER_EMAIL
     msg['To'] = RECIPIENT_EMAIL
 
-    # Create the HTML content
+    # --- Create the HTML content ---
     html_content = f"""
     <html>
     <head>
@@ -1016,8 +1118,8 @@ def send_email_report(
             body {{ font-family: Arial, sans-serif; line-height: 1.6; }}
             h1 {{ color: #333366; }}
             h2 {{ color: #666699; margin-top: 30px; }}
-            table {{ border-collapse: collapse; width: 100%; margin-bottom: 20px; }}
-            th, td {{ padding: 12px; text-align: left; border: 1px solid #ddd; }}
+            table {{ border-collapse: collapse; width: auto; margin-bottom: 20px; border: 1px solid #ddd; }} /* Adjusted width */
+            th, td {{ padding: 8px; text-align: left; border: 1px solid #ddd; }} /* Adjusted padding */
             th {{ background-color: #f2f2f2; }}
             .plot-container {{ margin: 20px 0; }}
         </style>
@@ -1026,20 +1128,25 @@ def send_email_report(
         <h1>Daily Market Report - {datetime.now().strftime("%Y-%m-%d")}</h1>
     """
 
+    # --- Add the summary table at the top ---
+    html_content += summary_table_html
+    html_content += "<hr>"  # Add a separator
+
     # Add data for each symbol
     for symbol in symbol_data:
         html_content += f"<h2>{symbol} Analysis</h2>"
 
-        # Add performance table
+        # Add individual performance table (ensure keys match what process_symbol now returns for this section)
         data = symbol_data[symbol]
+        # Use the correct keys based on the updated process_symbol return dict
         html_content += create_performance_table(
             symbol,
-            data['latest_price'],
-            data['returns'],
+            data['latest_price'],  # Or 'LastPrice' if you standardized
+            data['returns'],  # This holds the specific returns for the individual table
             data['percentiles'],
             data['hwm_price'],
             data['hwm_date'],
-            data['current_drawdown'],
+            data['current_drawdown_pct_individual'],  # Use the specific key for this table
             data['drawdown_percentile']
         )
 
@@ -1069,27 +1176,36 @@ def send_email_report(
     </html>
     """
 
-    # Attach HTML content
+    # --- Attach HTML and Images ---
     msg_html = MIMEText(html_content, 'html')
     msg.attach(msg_html)
 
-    # Attach images
+    # Attach images (ensure plots dictionary is iterated safely)
     for symbol in plots:
-        symbol_plots = plots[symbol]
-        for plot_key, fig in symbol_plots.items():
-            img_id = f"{symbol}_{plot_key}"
+        if symbol in plots:  # Double check symbol exists
+            symbol_plots = plots[symbol]
+            for plot_key, fig in symbol_plots.items():
+                if fig is not None:  # Check if figure object is valid
+                    img_id = f"{symbol}_{plot_key}"
+                    try:
+                        buf = io.BytesIO()
+                        fig.savefig(buf, format='png', dpi=100)
+                        buf.seek(0)
 
-            buf = io.BytesIO()
-            fig.savefig(buf, format='png', dpi=100)
-            buf.seek(0)
+                        img = MIMEImage(buf.read())
+                        img.add_header('Content-ID', f'<{img_id}>')
+                        msg.attach(img)
+                    except Exception as img_err:
+                        logger.error(f"Error attaching image {plot_key} for {symbol}: {img_err}")
 
-            img = MIMEImage(buf.read())
-            img.add_header('Content-ID', f'<{img_id}>')
-            msg.attach(img)
-
-    # Send email
+    # --- Send email ---
     try:
         logger.info("Connecting to SMTP server...")
+        # Ensure EMAIL_APP_PASSWORD and SENDER_EMAIL are correctly loaded
+        if not SENDER_EMAIL or not EMAIL_APP_PASSWORD:
+            logger.error("Sender email or app password not configured. Cannot send email.")
+            return
+
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(SENDER_EMAIL, EMAIL_APP_PASSWORD)
@@ -1098,6 +1214,7 @@ def send_email_report(
         logger.info("Email sent successfully!")
     except Exception as e:
         logger.error(f"Failed to send email: {e}")
+        logger.exception("Email sending failed with exception:")  # Log traceback
 
 
 def process_symbol(symbol: str, latest_quotes: Dict[str, Tuple[Optional[pd.Timestamp], Optional[float]]]) -> Tuple[Dict[str, Any], Dict[str, Figure]]:
@@ -1169,37 +1286,66 @@ def process_symbol(symbol: str, latest_quotes: Dict[str, Tuple[Optional[pd.Times
         logger.error(f"Data for {symbol} became empty after time filtering, skipping...")
         return {}, {}
 
-    # Calculate all indicators
+    # --- Calculate Indicators ---
     df = calculate_moving_averages(df)
-    df_returns, latest_returns = calculate_returns(df)
-    percentiles = calculate_percentiles(df_returns)
+
+    # Calculate Returns (Make sure pct_change gives fractions like 0.01 for 1%)
+    df['Return_1d'] = df['adj_close'].pct_change(periods=1)  # Daily return
+    df['Return_1w'] = df['adj_close'].pct_change(periods=5)
+    df['Return_1m'] = df['adj_close'].pct_change(periods=21)
+    df['Return_3m'] = df['adj_close'].pct_change(periods=63)
+    df['Return_6m'] = df['adj_close'].pct_change(periods=126)
+    df['Return_1y'] = df['adj_close'].pct_change(periods=252)
+    df['Return_2y'] = df['adj_close'].pct_change(periods=504)  # Approx 2 years
+
+    # Calculate YTD return separately if needed for the individual table, or reuse calculation from calculate_returns
+    # Reuse calculate_returns logic if needed for percentiles, but extract raw returns here too
+    df_returns_for_percentiles, latest_returns_for_individual_table = calculate_returns(
+        df.copy())  # Use copy if calculate_returns modifies df
+    percentiles = calculate_percentiles(df_returns_for_percentiles)
 
     # RSI calculations
-    df = calculate_rsi(df, window=14, wilder=True)  # Wilder's RSI
-    df = calculate_rsi(df, window=9, wilder=False)  # Fast RSI 9
-    df = calculate_rsi(df, window=14, wilder=False)  # Fast RSI 14
-    df = calculate_rsi(df, window=30, wilder=False)  # Fast RSI 30
+    df = calculate_rsi(df, window=14, wilder=True)  # Wilder's RSI ('RSI_14_Wilder')
+    df = calculate_rsi(df, window=9, wilder=False)  # Fast RSI 9 ('RSI_9')
+    df = calculate_rsi(df, window=14, wilder=False)  # Fast RSI 14 ('RSI_14')
+    df = calculate_rsi(df, window=30, wilder=False)  # Fast RSI 30 ('RSI_30')
 
-    # Volatility and drawdown (Recalculate daily_return first if adj_close was updated)
-    if 'daily_return' in df.columns:  # Check if column exists before recalculating
-        df['daily_return'] = df['adj_close'].pct_change()
-
+    # Volatility and drawdown
     df = calculate_volatility(df, windows=[10, 30, 60, 90])
-    df = calculate_drawdown(df)  # Drawdown calculation also depends on adj_close
+    df = calculate_drawdown(df)  # Calculates 'drawdown_pct', 'hwm_price', 'hwm_date', etc.
 
-    # Store the data (ensure index access is valid)
+    # --- Store the data ---
     if df.empty:
         logger.error(f"DataFrame for {symbol} is empty before storing data. Skipping.")
         return {}, {}
 
+    # Store all required raw data points for BOTH the summary table and individual sections
     try:
         symbol_data = {
-            'latest_price': df['adj_close'].iloc[-1],
-            'returns': latest_returns,  # Consider recalculating latest returns based on updated price
-            'percentiles': percentiles,
-            'hwm_price': df['hwm_price'].iloc[-1],
+            # Data for Summary Table
+            'LastPrice': df['adj_close'].iloc[-1],
+            'HighWaterMarkPrice': df['hwm_price'].iloc[-1],
+            'CurrentDrawdown': df['drawdown_pct'].iloc[-1] / 100.0,  # Store as fraction for formatting consistency
+            'RSI': df['RSI_14_Wilder'].iloc[-1] if 'RSI_14_Wilder' in df.columns else None,  # Use Wilder 14d RSI
+            'Return_1d': df['Return_1d'].iloc[-1],
+            'Return_1w': df['Return_1w'].iloc[-1],
+            'Return_1m': df['Return_1m'].iloc[-1],
+            'Return_3m': df['Return_3m'].iloc[-1],
+            'Return_6m': df['Return_6m'].iloc[-1],
+            'Return_1y': df['Return_1y'].iloc[-1],
+            'Return_2y': df['Return_2y'].iloc[-1],
+            'DMA_50': df['MA50'].iloc[-1],
+            'DMA_100': df['MA100'].iloc[-1],
+            'DMA_200': df['MA200'].iloc[-1],
+
+            # Data for Individual Section (some might overlap, ensure consistency)
+            'latest_price': df['adj_close'].iloc[-1],  # Redundant but keeps existing individual table working
+            'returns': latest_returns_for_individual_table,  # For the individual performance table
+            'percentiles': percentiles,  # For the individual performance table
+            'hwm_price': df['hwm_price'].iloc[-1],  # Redundant
             'hwm_date': df['hwm_date'].iloc[-1],
-            'current_drawdown': df['drawdown_pct'].iloc[-1],
+            'current_drawdown_pct_individual': df['drawdown_pct'].iloc[-1],
+            # Keep original format if needed by individual table
             'drawdown_percentile': df['drawdown_percentile'].iloc[-1] if 'drawdown_percentile' in df.columns and not df['drawdown_percentile'].empty else None
         }
     except IndexError:
@@ -1230,37 +1376,82 @@ def main() -> None:
     all_symbol_data = {}
     all_plots = {}
 
-    # --- Fetch latest quotes for all symbols first ---
     logger.info("Fetching initial real-time quotes for all symbols...")
     latest_quotes = fetch_realtime_bulk_quotes(symbols)
-    # ---
+
+    processed_data_list = []  # Collect data dictionaries
 
     for symbol in symbols:
         logger.info(f"Processing {symbol}...")
         try:
             symbol_data, plots = process_symbol(symbol, latest_quotes)
-            if symbol_data and plots:  # Check both data and plots might be returned partially on error
+            if symbol_data:  # Check if data was returned
                 all_symbol_data[symbol] = symbol_data
-            if plots:  # Store plots even if data failed, or adjust logic as needed
+                symbol_data['Symbol'] = symbol  # Add symbol to dict for DataFrame creation
+                processed_data_list.append(symbol_data)
+            if plots:  # Check if plots were returned
                 all_plots[symbol] = plots
         except Exception as e:
-            # Log the exception with traceback for more details
-            logger.exception(f"Unhandled error processing {symbol}: {e}")  # Use logger.exception to include traceback
+            logger.exception(f"Unhandled error processing {symbol}: {e}")
 
-    # Ensure you only send the email if you have valid data AND plots for at least one symbol
-    # Modify this check based on whether you want plots for symbols even if data generation failed
+    summary_table_html = "<h2>Summary Table</h2><p>No data generated.</p>"  # Default
+    if processed_data_list:
+        logger.info("Aggregating data for summary table...")
+
+        # Create DataFrame from the list of dictionaries
+        summary_df = pd.DataFrame(processed_data_list)
+        summary_df.set_index('Symbol', inplace=True)
+
+        # Define columns and formats for the summary table
+        summary_columns = [
+            'LastPrice', 'HighWaterMarkPrice', 'CurrentDrawdown', 'RSI',
+            'Return_1d', 'Return_1w', 'Return_1m', 'Return_3m', 'Return_6m', 'Return_1y', 'Return_2y',
+            'DMA_50', 'DMA_100', 'DMA_200'
+        ]
+        # Ensure only available columns are used
+        summary_columns_present = [col for col in summary_columns if col in summary_df.columns]
+
+        header_formats = {
+            'LastPrice': ('Last Price', 'currency'),
+            'HighWaterMarkPrice': ('HWM Price', 'currency'),  # Added format
+            'CurrentDrawdown': ('Drawdown', 'percent'),  # Use the fractional value calculated
+            'RSI': ('RSI (14d)', 'float'),
+            'Return_1d': ('1 Day', 'percent'),
+            'Return_1w': ('1 Week', 'percent'),
+            'Return_1m': ('1 Month', 'percent'),
+            'Return_3m': ('3 Month', 'percent'),
+            'Return_6m': ('6 Month', 'percent'),
+            'Return_1y': ('1 Year', 'percent'),
+            'Return_2y': ('2 Year', 'percent'),
+            'DMA_50': ('50 DMA', 'currency'),
+            'DMA_100': ('100 DMA', 'currency'),
+            'DMA_200': ('200 DMA', 'currency'),
+        }
+
+        # Filter formats to only include present columns
+        filtered_formats = {k: v for k, v in header_formats.items() if k in summary_columns_present}
+
+        # Select only the desired columns for the table
+        summary_df_selected = summary_df[summary_columns_present]
+
+        # Create the HTML table
+        summary_table_html = create_html_table(summary_df_selected, filtered_formats, "Market Summary")
+
+    else:
+        logger.warning("No symbols processed successfully, summary table cannot be generated.")
+
     if all_symbol_data and all_plots:
         logger.info("Sending email report...")
-        # Filter plots to only include symbols present in all_symbol_data to avoid errors
         plots_to_send = {sym: all_plots[sym] for sym in all_symbol_data if sym in all_plots}
         if plots_to_send:
-            send_email_report(all_symbol_data, plots_to_send)
+            # Pass the summary table HTML to the send function
+            send_email_report(all_symbol_data, plots_to_send, summary_table_html)
         else:
             logger.error("No valid plots correspond to the successfully processed symbol data. Aborting email.")
     else:
         logger.error("No symbol data or plots were successfully generated, aborting email...")
 
-    plt.close('all')  # Close all figures to free memory
+    plt.close('all')
 
 
 if __name__ == "__main__":
