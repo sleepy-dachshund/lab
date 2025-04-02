@@ -788,10 +788,10 @@ def format_value(value: Any, format_type: str = 'float') -> str:
         elif format_type == 'float':
             return f"{value:.2f}"
         elif format_type == 'integer':
-             return f"{int(value):,d}" # Format as integer with commas
+            return f"{int(value):,d}"  # Format as integer with commas
         elif format_type == 'currency':
-             return f"${value:,.2f}" # Format as currency
-        elif format_type == 'large_number': # Format large numbers (e.g., Market Cap)
+            return f"${value:,.2f}"  # Format as currency
+        elif format_type == 'large_number':  # Format large numbers (e.g., Market Cap)
             if abs(value) >= 1e12:
                 return f"${value/1e12:.2f} T"
             elif abs(value) >= 1e9:
@@ -801,14 +801,14 @@ def format_value(value: Any, format_type: str = 'float') -> str:
             else:
                  return f"${value:,.0f}"
         elif format_type == 'date':
-             if isinstance(value, pd.Timestamp):
-                 return value.strftime('%Y-%m-%d')
-             else:
-                 return str(value) # Fallback
+            if isinstance(value, pd.Timestamp):
+                return value.strftime('%Y-%m-%d')
+            else:
+                return str(value)  # Fallback
         else:
             return str(value)
     except (ValueError, TypeError):
-        return str(value) # Fallback if formatting fails
+        return str(value)  # Fallback if formatting fails
 
 
 def create_html_table(df: pd.DataFrame, columns_formats: Dict[str, Tuple[str, str]], title: str) -> str:
@@ -839,7 +839,7 @@ def create_html_table(df: pd.DataFrame, columns_formats: Dict[str, Tuple[str, st
     if df.index.name:
         html += f"<th>{df.index.name}</th>\n"
     else:
-         html += f"<th>Identifier</th>\n" # Default header
+        html += f"<th>Identifier</th>\n" # Default header
 
     # Add Column Headers
     display_names = [cf[0] for cf in columns_formats.values()]
@@ -863,7 +863,7 @@ def create_html_table(df: pd.DataFrame, columns_formats: Dict[str, Tuple[str, st
                             cell_style = ' style="color: red;"'
                 html += f"<td{cell_style}>{format_value(row[col], fmt)}</td>\n"
             else:
-                html += "<td>N/A</td>\n" # Column not present in this row
+                html += "<td>N/A</td>\n"  # Column not present in this row
         html += "</tr>\n"
 
     html += "</tbody>\n</table>\n"
