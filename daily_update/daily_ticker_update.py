@@ -1328,14 +1328,17 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
 if __name__ == "__main__":
 
     # Index ETFs to include in the daily update
-    major_indices = ['SPY', 'QQQ', 'IWM', 'TLT', 'GLD']
+    major_indices = ['SPY', 'QQQ', 'IWM', 'AGG', 'GLD']
 
     # Stocks to cover in the daily update(s)
-    coverage_set = ['AMZN', 'META', 'AAPL', 'BRK-B', 'GOOG', 'TSM', 'MSFT', 'ASML',
-                    'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT', 'NVDA']
-    watchlist_set = ['TTWO', 'UNH', 'ALK', 'DD', 'EQIX', 'PLD', 'AMT',
-                     'RTX', 'HON', 'DE', 'V', 'AXP', 'JPM', 'XOM', 'BP', 'CVX', 'VLO',
-                     'T', 'DIS', 'FDX', 'HD', 'LOW', 'COST', 'WMT', 'NKE', 'JNJ', 'LLY']
+    coverage_set = ['AMZN', 'GOOG', 'META', 'BRK-B', 'NVDA', 'TSM',
+                    'RHHBY', 'MELI', 'MSFT', 'WMT', 'SE',
+                    'NLFX', 'AAPL', 'ASML', 'JNJ',
+                    'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT']
+    watchlist_set = ['TTWO', 'CRWD', 'UNH', 'ALK', 'DD', 'AMT', 'CCI',
+                     'RTX', 'HON', 'V', 'AXP', 'JPM',
+                     'XOM', 'BP', 'CVX',
+                     'COST', 'NKE', 'LLY']
 
     # todo: add sector ETFs to data pull, market adjust their returns, and use to adjust stock returns
     # todo: for coverage set, add ability to input dictionary w/ share count for each stock to calculate portfolio return
