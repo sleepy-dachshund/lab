@@ -970,63 +970,117 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     # --- Data Fetching ---
     price_data: Dict[str, pd.DataFrame] = {}
     overview_data: Dict[str, pd.DataFrame] = {}
-    failed_symbols = []
+    failed_symbols: List[str] = []
 
-    # Fetch live quotes for all symbols at the start
+    logger.info("Fetching real-time quotes for all symbols...")
     latest_quotes = fetch_realtime_bulk_quotes(ALL_SYMBOLS)
+    logger.info("Real-time quotes fetched.")
 
     for symbol in ALL_SYMBOLS:
-        prices = fetch_alpha_vantage_prices(symbol)
+        logger.info(f"Processing symbol: {symbol}")
+        try:
+            # Fetch historical price data from Alpha Vantage
+            prices = fetch_alpha_vantage_prices(symbol)
 
-        # Append live quote if available
-        if symbol in latest_quotes:
-            live_timestamp, live_price = latest_quotes[symbol]
+            if not isinstance(prices.index, pd.DatetimeIndex):
+                if not prices.empty:
+                    logger.error(f"Price data for {symbol} does not have a DatetimeIndex. Skipping.")
+                    failed_symbols.append(symbol)
+                    continue
 
-            if live_price is not None and not prices.empty:
-                last_historical_date = prices.index.max().normalize()  # Get last date, ignore time
-                # Calculate the next business day strictly after the last historical date
-                next_bday = (last_historical_date + BDay(1)).normalize()
+            # --- Append Live Quote Logic ---
+            if symbol in latest_quotes:
+                live_timestamp, live_price = latest_quotes[symbol]
 
-                # Create a new row with the live price at the calculated next business day
-                new_row_data = {'adj_close': live_price}
-                # Add NaNs for other columns if they exist in `prices`
-                for col in prices.columns:
-                    if col not in new_row_data:
-                        new_row_data[col] = np.nan
+                # Proceed only if we have a valid price and historical data exists to compare against
+                if live_price is not None and not prices.empty:
+                    if not isinstance(live_timestamp, pd.Timestamp):
+                        try:
+                            live_timestamp = pd.Timestamp(live_timestamp)
+                        except Exception as e:
+                            logger.warning(f"Could not convert live_timestamp for {symbol} to Timestamp: {live_timestamp}. Error: {e}. Skipping live quote.")
+                            live_timestamp = None
 
-                new_row = pd.DataFrame(new_row_data, index=[next_bday])
+                    if live_timestamp:
+                        try:
+                            live_quote_date = live_timestamp.tz_convert(None).normalize()
+                        except TypeError:
+                            live_quote_date = live_timestamp.normalize()
 
-                # Append the new row if the date doesn't already exist
-                if next_bday not in prices.index:
-                    prices = pd.concat([prices, new_row])
-                    prices.sort_index(inplace=True)  # Ensure order is maintained
-                    logger.info(f"Appended live quote for {symbol} for date {next_bday.strftime('%Y-%m-%d')}")
-                else:
-                    logger.warning(
-                        f"Skipping live quote append for {symbol} - date {next_bday.strftime('%Y-%m-%d')} already exists.")
+                        last_historical_date = prices.index.max().normalize()  # Already DatetimeIndex, just normalize
 
-        overview = fetch_alpha_vantage_overviews(symbol)
+                        # --- Core Conditional Logic ---
+                        if live_quote_date > last_historical_date:
+                            logger.info(
+                                f"Live quote date {live_quote_date.strftime('%Y-%m-%d')} is newer than last historical date {last_historical_date.strftime('%Y-%m-%d')} for {symbol}.")
 
-        if prices.empty:
-            logger.warning(f"Failed to fetch price data for {symbol}. Skipping.")
+                            if live_quote_date not in prices.index:
+
+                                new_row_data = {'adj_close': live_price}
+
+                                for col in prices.columns:
+                                    if col not in new_row_data:
+                                        new_row_data[col] = np.nan
+
+                                new_row = pd.DataFrame(new_row_data, index=[live_quote_date])
+                                new_row.index.name = prices.index.name
+
+                                # Concatenate the historical prices with the new row
+                                prices = pd.concat([prices, new_row])
+                                prices.sort_index(inplace=True)
+                                logger.info(
+                                    f"Appended live quote for {symbol} for date {live_quote_date.strftime('%Y-%m-%d')}")
+                            else:
+                                logger.warning(
+                                    f"Skipping live quote append for {symbol} - date {live_quote_date.strftime('%Y-%m-%d')} unexpectedly found in index despite being after max date.")
+                        else:
+                            logger.info(
+                                f"Skipping live quote append for {symbol}. Live quote date {live_quote_date.strftime('%Y-%m-%d')} is not strictly later than the last historical date {last_historical_date.strftime('%Y-%m-%d')}.")
+                    else:
+                        logger.warning(f"Could not process live_timestamp for {symbol}. Skipping live quote append.")
+
+                elif live_price is None:
+                    logger.info(f"No valid live price available for {symbol} in latest_quotes. Skipping append.")
+
+            else:
+                logger.info(f"No real-time quote found for {symbol} in the fetched batch.")
+
+            if prices.empty:
+                logger.warning(f"Failed to fetch price data for {symbol} and no live quote appended. Skipping.")
+                failed_symbols.append(symbol)
+                continue
+
+            # Store the price data
+            price_data[symbol] = prices
+
+            # Fetch overview data
+            overview = fetch_alpha_vantage_overviews(symbol)
+
+            if overview.empty:
+                logger.warning(f"Failed to fetch overview data for {symbol}. Proceeding with price data only.")
+                # Create a minimal overview entry, setting index name to match convention if possible
+                overview_data[symbol] = pd.DataFrame([{'Name': symbol, 'Sector': 'OTHER'}],
+                                                     index=pd.Index([symbol], name='symbol'))
+            else:
+                # Ensure the 'Sector' column exists, default to 'OTHER' if not provided by API
+                if 'Sector' not in overview.columns:
+                    logger.debug(f"Adding default 'OTHER' Sector for {symbol}")
+                    overview['Sector'] = 'OTHER'
+                # Ensure index name consistency if possible (optional but good practice)
+                if overview.index.name is None:
+                    overview.index.name = 'symbol'
+                overview_data[symbol] = overview
+
+            # Add small delay to avoid hitting API rate limits
+            import time
+            delay_seconds = 60.0 / (MAX_VANTAGE_API_RPM / API_CALLS_PER_TICKER)
+            logger.debug(f"Sleeping for {delay_seconds:.2f} seconds before next symbol...")
+            time.sleep(delay_seconds)
+
+        except Exception as e:
+            logger.error(f"An unexpected error occurred processing symbol {symbol}: {e}", exc_info=True)
             failed_symbols.append(symbol)
-            continue  # Skip if essential price data is missing
 
-        price_data[symbol] = prices
-
-        if overview.empty:
-            logger.warning(f"Failed to fetch overview data for {symbol}. Proceeding with price data only.")
-            # Create a minimal overview entry if needed, e.g., for sector mapping
-            overview_data[symbol] = pd.DataFrame([{'Name': symbol, 'Sector': 'OTHER'}], index=[symbol])
-        else:
-            # Ensure the 'Sector' column exists, default to 'OTHER' if not provided by API
-            if 'Sector' not in overview.columns:
-                overview['Sector'] = 'OTHER'
-            overview_data[symbol] = overview
-
-        # Add small delay to avoid hitting API rate limits
-        import time
-        time.sleep(60 / (MAX_VANTAGE_API_RPM / API_CALLS_PER_TICKER))
 
     # Remove failed symbols from the list to process
     active_symbols = [s for s in ALL_SYMBOLS if s not in failed_symbols]
@@ -1034,6 +1088,8 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     if not active_symbols:
         logger.error("No data fetched successfully. Exiting.")
         return
+    if failed_symbols:
+        logger.warning(f"Failed to process symbols: {failed_symbols}")
 
     # --- Combine Overview Data ---
     combined_overview = pd.concat(overview_data.values())
@@ -1332,8 +1388,8 @@ if __name__ == "__main__":
 
     # Stocks to cover in the daily update(s)
     coverage_set = ['AMZN', 'GOOG', 'META', 'BRK-B', 'NVDA', 'TSM',
-                    'RHHBY', 'MELI', 'MSFT', 'WMT', 'SE',
-                    'NLFX', 'AAPL', 'ASML', 'JNJ',
+                    'MELI', 'MSFT', 'WMT', 'SE',
+                    'NFLX', 'AAPL', 'ASML', 'JNJ',
                     'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT']
     watchlist_set = ['TTWO', 'CRWD', 'UNH', 'ALK', 'DD', 'AMT', 'CCI',
                      'RTX', 'HON', 'V', 'AXP', 'JPM',
