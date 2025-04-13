@@ -3,3 +3,4 @@ headsup/.env
 /headsup/data
 headsup/screener_details.pdf
 daily_update/config.py
+/factors/data_dump

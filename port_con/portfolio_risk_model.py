@@ -27,7 +27,7 @@ class PortfolioRiskModel:
 
         # Validate Inputs, Set Basic Parameters, Initialize Data
         self._validate_inputs(df_port, df_factor_loadings, df_factor_covar, df_alpha_vols)
-        self._set_basic_params(df_port, date, factor_model_id)
+        self._set_basic_params(df_port, date, factor_model_id, df_factor_loadings)
         self._initialize_data(df_port, df_factor_loadings, df_factor_covar, df_alpha_vols)
 
         # ====================== factor checks ====================== #
@@ -86,7 +86,7 @@ class PortfolioRiskModel:
         assert np.all(
             df_factor_covar.index == df_factor_covar.columns), "Covar matrix must have factors as index and columns"
 
-    def _set_basic_params(self, df_port, date, factor_model_id):
+    def _set_basic_params(self, df_port, date, factor_model_id, df_factor_loadings):
         if date is not None:
             assert date in df_port['date'].unique()
             if isinstance(date, str):
