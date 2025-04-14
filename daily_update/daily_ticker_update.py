@@ -1387,14 +1387,15 @@ if __name__ == "__main__":
     major_indices = ['SPY', 'QQQ', 'IWM', 'AGG', 'GLD']
 
     # Stocks to cover in the daily update(s)
-    coverage_set = ['AMZN', 'GOOG', 'META', 'BRK-B', 'NVDA', 'TSM',
+    coverage_set = ['AMZN', 'GOOG', 'META', 'BRK-B', 'NVDA', 'TSM', 'JNJ',
                     'MELI', 'MSFT', 'WMT', 'SE',
-                    'NFLX', 'AAPL', 'ASML', 'JNJ',
+                    'NFLX', 'AAPL', 'ASML',
                     'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT']
-    watchlist_set = ['TTWO', 'CRWD', 'UNH', 'ALK', 'DD', 'AMT', 'CCI',
+    watchlist_set = ['TTWO', 'CRWD', 'DE', 'KR', 'UNH', 'ALK', 'DD', 'AMT', 'CCI',
                      'RTX', 'HON', 'V', 'AXP', 'JPM',
-                     'XOM', 'BP', 'CVX',
-                     'COST', 'NKE', 'LLY']
+                     'GILD', 'MRK'
+                     'COP', 'XOM',
+                     'COST', 'NKE', 'LLY', 'VZ']
 
     # todo: add sector ETFs to data pull, market adjust their returns, and use to adjust stock returns
     # todo: for coverage set, add ability to input dictionary w/ share count for each stock to calculate portfolio return
