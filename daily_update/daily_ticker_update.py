@@ -1393,7 +1393,7 @@ if __name__ == "__main__":
                     'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT']
     watchlist_set = ['TTWO', 'CRWD', 'DE', 'KR', 'UNH', 'ALK', 'DD', 'AMT', 'CCI',
                      'RTX', 'HON', 'V', 'AXP', 'JPM',
-                     'GILD', 'MRK'
+                     'GILD', 'MRK',
                      'COP', 'XOM',
                      'COST', 'NKE', 'LLY', 'VZ']
 
