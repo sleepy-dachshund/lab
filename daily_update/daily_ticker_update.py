@@ -1391,8 +1391,10 @@ if __name__ == "__main__":
                     'MELI', 'MSFT', 'WMT', 'SE',
                     'NFLX', 'AAPL', 'ASML',
                     'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT']
-    watchlist_set = ['TTWO', 'CRWD', 'DE', 'KR', 'UNH', 'ALK', 'DD', 'AMT', 'CCI',
-                     'RTX', 'HON', 'V', 'AXP', 'JPM',
+    watchlist_set = ['TTWO', 'CRWD', 'DE', 'KR', 'UNH', 'ALK', 'DD',
+                     'AMT', 'CCI',
+                     'LMT', 'NOC', 'LHX', 'HII',
+                     'V', 'AXP', 'JPM',
                      'GILD', 'MRK',
                      'COP', 'XOM',
                      'COST', 'NKE', 'LLY', 'VZ']
