@@ -1372,7 +1372,7 @@ def main() -> None:
     """
     Main function to run the daily market report generation.
     """
-    symbols = ['SPY', 'QQQ', 'IWM', 'RSP', 'XLI', 'XLY', 'XLP', 'XLE', 'XLF', 'XLV']
+    symbols = ['SPY', 'QQQ', 'IWM', 'DUHP', 'RSP', 'AGG']
     all_symbol_data = {}
     all_plots = {}
 
