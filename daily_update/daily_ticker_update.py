@@ -1364,7 +1364,7 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
                  {'<img src="cid:roe_vs_margin">' if 'roe_vs_margin' in plot_cids else '<p>ROE vs Profit Margin plot missing.</p>'}
             </div>
              <div class="plot-container">
-                <h3>TrailingPCF vs CapEx as % of Revenue</h3>
+                <h3>TrailingPCF vs CapEx as % of Cash Flow</h3>
                  {'<img src="cid:pcf_vs_capex">' if 'pcf_vs_capex' in plot_cids else '<p>PCF vs CapEx Share plot missing.</p>'}
             </div>
             {html_tables.get('valuation', '<p>Valuation table data missing.</p>')}
