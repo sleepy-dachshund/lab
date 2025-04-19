@@ -20,6 +20,8 @@ from dateutil.relativedelta import relativedelta
 import base64
 from io import BytesIO
 
+from vantage_data_utils import *
+
 ''' =======================================================================================================
     Config
 ======================================================================================================= '''
@@ -946,7 +948,7 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     # --- Configuration ---
     # API Rate Limit: 150 calls per minute
     MAX_VANTAGE_API_RPM = 148
-    API_CALLS_PER_TICKER = 2
+    API_CALLS_PER_TICKER = 3
 
     # Use a smaller list for testing, expand as needed
     INPUT_TICKERS = symbol_list
@@ -1056,6 +1058,18 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
             # Fetch overview data
             overview = fetch_alpha_vantage_overviews(symbol)
 
+            ######################################
+            # --- Example: Add Additional Data ---
+            ######################################
+            cash_flow = fetch_alpha_vantage_cash_flow(symbol, logger=logger)
+            if not cash_flow.empty:
+                overview = pd.merge(overview, cash_flow, how='left', left_index=True, right_index=True, validate='1:1')
+                overview['TrailingPCF'] = np.where(overview.operatingCashflow > 0,
+                                                   overview.MarketCapitalization / overview.operatingCashflow, np.nan)
+                overview['CapExShareCF'] = np.where(overview.operatingCashflow > 0,
+                                                     overview.capitalExpenditures / overview.operatingCashflow, np.nan)
+                overview['FCFYield'] = overview.freeCashFlow / overview.MarketCapitalization
+
             if overview.empty:
                 logger.warning(f"Failed to fetch overview data for {symbol}. Proceeding with price data only.")
                 # Create a minimal overview entry, setting index name to match convention if possible
@@ -1080,7 +1094,6 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
         except Exception as e:
             logger.error(f"An unexpected error occurred processing symbol {symbol}: {e}", exc_info=True)
             failed_symbols.append(symbol)
-
 
     # Remove failed symbols from the list to process
     active_symbols = [s for s in ALL_SYMBOLS if s not in failed_symbols]
@@ -1186,6 +1199,11 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     if fig_corr_heatmap:
          plots['correlation_heatmap'] = fig_corr_heatmap
 
+    # Plot 6: PCF vs CapEx/Revenue
+    fig_pcf_capex = plot_fundamental_scatter(summary_data_general, 'TrailingPCF', 'CapExShareCF', SECTOR_COLORS)
+    if fig_pcf_capex:
+        plots['pcf_vs_capex'] = fig_pcf_capex
+
     # --- Convert Plots to Base64 for Email Embedding ---
     plot_cids: Dict[str, str] = {}
     for name, fig in plots.items():
@@ -1227,9 +1245,8 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
         'Return_1w': ('1w Return', 'percent'),
         'CurrentDrawdown': ('% from HWM (2Y)', 'percent'),
         'RSI': ('RSI', 'float'),
+        'LastPrice': ('Last Price', 'currency'),
         'AnalystTargetPrice': ('Analyst Target', 'currency'),
-        'TrailingPE': ('Trailing PE', 'float'),
-        'PEGRatio': ('PEG Ratio', 'float'),
     }
     html_tables['top_gainers'] = create_html_table(gainers, top_movers_formats, f"Top {len(gainers)} Gainers (Last Week)")
     if not losers.empty:
@@ -1238,11 +1255,11 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     # Table 3: Valuation
     valuation_formats = {
         'Name': ('Name', 'string'),
-        'LastPrice': ('Last Price', 'currency'),
-        'EPS': ('EPS (TTM)', 'float'),
         'TrailingPE': ('Trailing PE', 'float'),
-        'ForwardPE': ('Forward PE', 'float'),
+        'TrailingPCF': ('Trailing PCF', 'float'),
+        'CapExShareCF': ('CapEx/CashFlow', 'float'),
         'PEGRatio': ('PEG Ratio', 'float'),
+        'ForwardPE': ('Forward PE', 'float'),
         'QuarterlyEarningsGrowthYOY': ('Quarterly Earnings Growth (YoY)', 'percent'),
     }
     html_tables['valuation'] = create_html_table(summary_data_general, valuation_formats, "Valuation Metrics")
@@ -1272,7 +1289,7 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
         'Name': ('Name', 'string'),
         'LastPrice': ('Last Price', 'currency'),
         'HighWaterMarkPrice': ('Max Price (2Y)', 'currency'),
-        # 'HighWaterMarkDate': ('Max Price Date', 'date'), # Optional: Add date
+        'HighWaterMarkDate': ('Max Price Date', 'date'), # Optional: Add date
         'CurrentDrawdown': ('Current Drawdown', 'percent'),
         'RSI': ('RSI (14d)', 'float'),
     }
@@ -1345,6 +1362,10 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
              <div class="plot-container">
                 <h3>ROE vs Profit Margin</h3>
                  {'<img src="cid:roe_vs_margin">' if 'roe_vs_margin' in plot_cids else '<p>ROE vs Profit Margin plot missing.</p>'}
+            </div>
+             <div class="plot-container">
+                <h3>TrailingPCF vs CapEx as % of Revenue</h3>
+                 {'<img src="cid:pcf_vs_capex">' if 'pcf_vs_capex' in plot_cids else '<p>PCF vs CapEx Share plot missing.</p>'}
             </div>
             {html_tables.get('valuation', '<p>Valuation table data missing.</p>')}
             {html_tables.get('efficiency', '<p>Efficiency table data missing.</p>')}
