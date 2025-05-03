@@ -732,11 +732,18 @@ def send_email_report(
 ======================================================================================================= '''
 
 
-def main(symbol_list: List[str], market_indices: List[str], update_name: str) -> None:
+def main(symbol_list: List[str], market_indices: List[str], update_name: str) -> pd.DataFrame:
     """
     Main function to run the analysis and generate the report.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the combined overview, calculated metrics, and fundamental data
+        for all successfully processed symbols, indexed by symbol. Returns an empty DataFrame
+        if no symbols could be processed.
     """
-    logger.info("Starting the daily ticker update process...")
+    logger.info(f"Starting the {update_name} process...")
 
     # --- Configuration ---
     # API Rate Limit: 150 calls per minute
@@ -893,7 +900,12 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     logger.info(f"Successfully fetched data for {len(active_symbols)} symbols: {active_symbols}")
     if not active_symbols:
         logger.error("No data fetched successfully. Exiting.")
-        return
+        # Return an empty DataFrame if no symbols were processed
+        empty_df = pd.DataFrame()
+        if combined_overview is not None and not combined_overview.empty:
+             # Try to keep columns consistent if possible, even if empty
+             empty_df = pd.DataFrame(columns=combined_overview.columns.tolist() + combined_metrics.columns.tolist())
+        return empty_df
     if failed_symbols:
         logger.warning(f"Failed to process symbols: {failed_symbols}")
 
@@ -1189,6 +1201,9 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     else:
         send_email_report(html_body, plot_cids, subject_text=update_name)
 
+    logger.info(f"Finished processing for: {update_name}")
+    return all_data
+
 
 ''' =======================================================================================================
     Execute Main Function
@@ -1216,7 +1231,11 @@ if __name__ == "__main__":
     # todo: add sector ETFs to data pull, market adjust their returns, and use to adjust stock returns
     # todo: for coverage set, add ability to input dictionary w/ share count for each stock to calculate portfolio return
 
-    main(symbol_list=coverage_set, market_indices=major_indices, update_name="Daily Coverage Update")  # update_name is just the subject line of the email
-    main(symbol_list=watchlist_set, market_indices=major_indices, update_name="Daily Watchlist Update")
+    # Call main and capture the returned DataFrames
+    logger.info("Running analysis for Coverage Set...")
+    coverage_df = main(symbol_list=coverage_set, market_indices=major_indices, update_name="Daily Coverage Update")  # update_name is just the subject line of the email
+
+    logger.info("Running analysis for Watchlist Set...")
+    watchlist_df = main(symbol_list=watchlist_set, market_indices=major_indices, update_name="Daily Watchlist Update")
 
     logger.info("Script execution finished.")
