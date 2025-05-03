@@ -20,8 +20,6 @@ from dateutil.relativedelta import relativedelta
 import base64
 from io import BytesIO
 
-from vantage_data_utils import *
-
 ''' =======================================================================================================
     Config
 ======================================================================================================= '''
@@ -55,212 +53,7 @@ logger = logging.getLogger(__name__)
     Data Fetching Functions
 ======================================================================================================= '''
 
-
-def fetch_alpha_vantage_prices(symbol: str, output_size: str = 'full') -> pd.DataFrame:
-    """
-    Fetch daily stock data (adj. close prices) from Alpha Vantage API.
-
-    Parameters
-    ----------
-    symbol : str
-        The stock symbol to fetch data for.
-    output_size : str, optional
-        The amount of data to fetch, by default 'full' (up to 20 years).
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the historical stock data.
-        Index: pd.DatetimeIndex
-        Columns: ['adj_close', 'volume', 'date']
-    """
-    logger.info(f"Fetching price data for {symbol}...")
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={symbol}&outputsize={output_size}&apikey={VANTAGE_API_KEY}"
-    try:
-        r = requests.get(url, timeout=30)  # Add timeout
-        r.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-        data = r.json()
-
-        if "Error Message" in data:
-            logger.error(f"API Error fetching price data for {symbol}: {data['Error Message']}")
-            return pd.DataFrame()
-        if "Time Series (Daily)" not in data:
-            # Handle potential rate limiting message or other unexpected formats
-            if "Information" in data:
-                 logger.warning(f"API Info for {symbol}: {data['Information']}. Might be rate limited.")
-            else:
-                logger.error(f"Unexpected price response format for {symbol}: {data}")
-            return pd.DataFrame()
-
-        time_series = data["Time Series (Daily)"]
-        df = pd.DataFrame.from_dict(time_series, orient='index')
-        df = df.apply(pd.to_numeric)
-        df.rename(columns={
-            '1. open': 'open',
-            '2. high': 'high',
-            '3. low': 'low',
-            '4. close': 'close',
-            '5. adjusted close': 'adj_close',
-            '6. volume': 'volume',
-        }, inplace=True)
-        df = df[['adj_close', 'volume']].copy()
-        df.index = pd.to_datetime(df.index)
-        df.sort_index(inplace=True)
-        df['date'] = df.index
-        logger.info(f"Successfully fetched price data for {symbol}, {len(df)} rows")
-        return df
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error fetching price data for {symbol}: {e}")
-        return pd.DataFrame()
-    except Exception as e:
-        logger.error(f"An unexpected error occurred fetching price data for {symbol}: {e}")
-        return pd.DataFrame()
-
-
-def fetch_alpha_vantage_overviews(symbol: str) -> pd.DataFrame:
-    """
-    Fetch stock company overview data from Alpha Vantage API.
-
-    Parameters
-    ----------
-    symbol : str
-        The stock symbol to fetch data for.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the company data.
-        Index: Symbol
-        Columns: Name, Sector, MarketCapitalization, AnalystTargetPrice, EPS,
-                 TrailingPE, ForwardPE, PEGRatio, QuarterlyEarningsGrowthYOY, EVToEBITDA, PriceToSalesRatioTTM,
-                 ProfitMargin, OperatingMarginTTM, ReturnOnAssetsTTM, ReturnOnEquityTTM,
-                 RevenueTTM, GrossProfitTTM
-    """
-    logger.info(f"Fetching overview data for {symbol}...")
-    url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={VANTAGE_API_KEY}"
-    try:
-        r = requests.get(url, timeout=30)  # Add timeout
-        r.raise_for_status()
-        data = r.json()
-
-        if "Error Message" in data:
-            logger.error(f"API Error fetching overview for {symbol}: {data['Error Message']}")
-            return pd.DataFrame()
-        if not data or 'Symbol' not in data:  # Check if data is empty or lacks essential key
-            if "Information" in data:
-                logger.warning(f"API Info for {symbol}: {data['Information']}. Might be rate limited.")
-            else:
-                logger.error(f"Unexpected or empty overview response for {symbol}: {data}")
-            return pd.DataFrame()
-
-        id_cols = ['Symbol', 'Name', 'Sector']
-        numeric_cols = ['MarketCapitalization', 'AnalystTargetPrice', 'EPS',
-                        'TrailingPE', 'ForwardPE', 'PEGRatio', 'QuarterlyEarningsGrowthYOY',
-                        'EVToEBITDA', 'PriceToSalesRatioTTM', 'ProfitMargin', 'OperatingMarginTTM',
-                        'ReturnOnAssetsTTM', 'ReturnOnEquityTTM', 'RevenueTTM', 'GrossProfitTTM']
-
-        # Ensure all expected columns exist in the response, fill with None if missing
-        overview_data = {col: data.get(col) for col in id_cols + numeric_cols}
-
-        df = pd.DataFrame([overview_data])  # Create DataFrame from dict
-        df.set_index('Symbol', inplace=True)
-
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce')  # 'coerce' turns errors into NaT/NaN
-
-        logger.info(f"Successfully fetched overview data for {symbol}")
-        return df
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error fetching overview data for {symbol}: {e}")
-        return pd.DataFrame()
-    except Exception as e:
-        logger.error(f"An unexpected error occurred fetching overview data for {symbol}: {e}")
-        return pd.DataFrame()
-
-
-def fetch_realtime_bulk_quotes(symbols: List[str]) -> Dict[str, Tuple[Optional[pd.Timestamp], Optional[float]]]:
-    """
-    Fetch realtime bulk quotes from Alpha Vantage for a list of symbols.
-
-    Prioritizes 'close' price (live market price) if available,
-    otherwise uses 'extended_hours_quote'.
-
-    Parameters
-    ----------
-    symbols : List[str]
-        List of stock symbols (max 100 per call recommended by Alpha Vantage).
-
-    Returns
-    -------
-    Dict[str, Tuple[Optional[pd.Timestamp], Optional[float]]]
-        Dictionary mapping each symbol to a tuple containing:
-        (Timestamp of the quote (Eastern Time), Price).
-        Returns (None, None) if no valid quote found for a symbol.
-    """
-    logger.info(f"Fetching realtime bulk quotes for {len(symbols)} symbols...")
-    live_quotes = {}
-    # Alpha Vantage suggests max 100 symbols per bulk request
-    symbols_string = ','.join(symbols)
-    url = f'https://www.alphavantage.co/query?function=REALTIME_BULK_QUOTES&symbol={symbols_string}&apikey={VANTAGE_API_KEY}'
-
-    try:
-        r = requests.get(url, timeout=30)
-        r.raise_for_status()
-        data = r.json()
-
-        if "Error Message" in data:
-            logger.error(f"API Error fetching bulk quotes: {data['Error Message']}")
-            return {s: (None, None) for s in symbols} # Return None for all on error
-        if "data" not in data or not data["data"]:
-            logger.warning(f"No 'data' field in bulk quote response or empty: {data}")
-            return {s: (None, None) for s in symbols}
-
-        quote_df = pd.DataFrame(data['data'])
-        # Convert relevant columns, coercing errors
-        quote_df['timestamp'] = pd.to_datetime(quote_df['timestamp'], errors='coerce')
-        numeric_cols = ['close', 'extended_hours_quote']
-        for col in numeric_cols:
-            quote_df[col] = pd.to_numeric(quote_df[col], errors='coerce')
-
-        for index, row in quote_df.iterrows():
-            symbol = row['symbol']
-            timestamp = row['timestamp']
-            live_price = row['close']
-            extended_price = row['extended_hours_quote']
-
-            price_to_use = None
-            if pd.notna(live_price):
-                price_to_use = live_price
-                logger.debug(f"Using live quote for {symbol}: {price_to_use} at {timestamp}")
-            elif pd.notna(extended_price):
-                price_to_use = extended_price
-                logger.debug(f"Using extended hours quote for {symbol}: {price_to_use} at {timestamp}")
-            else:
-                logger.warning(f"No valid live or extended quote found for {symbol}.")
-
-            if pd.notna(timestamp) and price_to_use is not None:
-                live_quotes[symbol] = (timestamp, price_to_use)
-            else:
-                live_quotes[symbol] = (None, None) # Store None if data invalid
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error fetching bulk quotes: {e}")
-        return {s: (None, None) for s in symbols}
-    except Exception as e:
-        logger.error(f"An unexpected error occurred fetching bulk quotes: {e}")
-        return {s: (None, None) for s in symbols}
-
-    # Ensure all requested symbols have an entry, even if fetching failed for them
-    for s in symbols:
-        if s not in live_quotes:
-            live_quotes[s] = (None, None)
-            logger.warning(f"Symbol {s} not found in bulk quote response.")
-
-    logger.info(f"Finished fetching realtime quotes. Found data for {len([q for q in live_quotes.values() if q[0] is not None])} symbols.")
-    return live_quotes
-
+from vantage_data_utils import fetch_alpha_vantage_prices, fetch_alpha_vantage_overviews, fetch_realtime_bulk_quotes, fetch_alpha_vantage_cash_flow
 
 ''' =======================================================================================================
     Calculation Functions
@@ -975,14 +768,14 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
     failed_symbols: List[str] = []
 
     logger.info("Fetching real-time quotes for all symbols...")
-    latest_quotes = fetch_realtime_bulk_quotes(ALL_SYMBOLS)
+    latest_quotes = fetch_realtime_bulk_quotes(ALL_SYMBOLS, logger=logger)
     logger.info("Real-time quotes fetched.")
 
     for symbol in ALL_SYMBOLS:
         logger.info(f"Processing symbol: {symbol}")
         try:
             # Fetch historical price data from Alpha Vantage
-            prices = fetch_alpha_vantage_prices(symbol)
+            prices = fetch_alpha_vantage_prices(symbol, logger=logger)
 
             if not isinstance(prices.index, pd.DatetimeIndex):
                 if not prices.empty:
@@ -1056,7 +849,7 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
             price_data[symbol] = prices
 
             # Fetch overview data
-            overview = fetch_alpha_vantage_overviews(symbol)
+            overview = fetch_alpha_vantage_overviews(symbol, logger=logger)
 
             ######################################
             # --- Example: Add Additional Data ---
@@ -1405,11 +1198,11 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
 if __name__ == "__main__":
 
     # Index ETFs to include in the daily update
-    major_indices = ['SPY', 'QQQ', 'IWM', 'AGG', 'GLD']
+    major_indices = ['SPY', 'QQQ', 'IWM', 'QMOM', 'AGG', 'GLD']
 
     # Stocks to cover in the daily update(s)
-    coverage_set = ['AMZN', 'GOOG', 'META', 'BRK-B', 'NVDA', 'TSM', 'JNJ',
-                    'MELI', 'MSFT', 'WMT', 'SE',
+    coverage_set = ['AMZN', 'GOOG', 'META', 'TSM', 'NVDA', 'BRK-B', 'JNJ',
+                    'MELI', 'MSFT', 'SE',
                     'NFLX', 'AAPL', 'ASML',
                     'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT']
     watchlist_set = ['TTWO', 'CRWD', 'DE', 'KR', 'UNH', 'ALK', 'DD',
