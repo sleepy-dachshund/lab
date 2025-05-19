@@ -245,16 +245,40 @@ def gen_random_data(num_names=1500, random_seed=252):
     df_port['mv'] = np.where(np.abs(df_port['mv']) < 50000, np.sign(df_port['mv']) * 50000, df_port['mv'])
 
     # 2. Factor Loadings
-    factors = ['size', 'value', 'profitability', 'momentum', 'market_intercept']
+
+    # select factors
+    factors_style = ['size', 'value', 'profitability', 'momentum']
+    factors_market = ['market_intercept']
+    factors_industry = ['tech', 'industrials', 'healthcare', 'consumer', 'energy', 'financials']
+
+    factors = factors_style + factors_market + factors_industry
+
+    # initialize factor loadings dataframe
     df_factor_loadings = pd.DataFrame({
         'date': dates[0],
         'ticker': np.repeat(tickers, len(factors)),
         'factor_model': 'jimmy-us-mh',
         'factor': factors * len(tickers),
-        'loading': np.random.normal(0, 1, len(tickers) * len(factors))
     })
+
+    # add factor_group column
+    df_factor_loadings['factor_group'] = np.where(df_factor_loadings['factor'].isin(factors_style), 'style',
+                                                    np.where(df_factor_loadings['factor'].isin(factors_market), 'market',
+                                                             'industry'))
+    # all market loadings 1
     if 'market_intercept' in df_factor_loadings['factor'].unique():
         df_factor_loadings.loc[df_factor_loadings['factor'] == 'market_intercept', 'loading'] = 1
+
+    # all industry loadings 0 or 1, one industry per ticker
+    for industry in factors_industry:
+        df_factor_loadings.loc[df_factor_loadings['factor'] == industry, 'loading'] = 0
+    for ticker in tickers:
+        industry = np.random.choice(factors_industry)
+        df_factor_loadings.loc[(df_factor_loadings['ticker'] == ticker) & (df_factor_loadings['factor'] == industry), 'loading'] = 1
+
+    # all style loadings rand norm 0,1
+    for style in factors_style:
+        df_factor_loadings.loc[df_factor_loadings['factor'] == style, 'loading'] = np.random.normal(0, 1, len(df_factor_loadings[df_factor_loadings['factor'] == style]))
 
     # 3. Factor Covariance Matrix
     # add covariances
