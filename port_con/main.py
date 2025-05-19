@@ -21,7 +21,7 @@ st.write(f"### Portfolio Date: {prm.portfolio_date.strftime('%Y-%m-%d')}")
 st.write(F"### Risk Model: {prm.factor_model_id}")
 st.write("---")
 
-left, middle, right1, right2 = st.columns([2, 5, 3, 3])
+left, middle, right1, right2 = st.columns([2, 5, 3, 2])
 
 with left:
     st.subheader('Portfolio Overview')
@@ -68,7 +68,7 @@ with right2:
     # concat the above dfs vertically
     alpha_combined = pd.concat([alpha_side, alpha_industry], ignore_index=True)
     cols = ['group', 'subset', 'alpha_risk_contribution']
-    alpha_combined = alpha_combined[cols].sort_values(['group', 'alpha_risk_contribution'], ascending=[False, False])
+    alpha_combined = alpha_combined[cols].sort_values(['group', 'alpha_risk_contribution'], ascending=[False, False]).set_index(['group', 'subset'])
     st.dataframe(alpha_combined, use_container_width=True, height=750)
 
 st.write("---")
