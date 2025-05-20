@@ -23,24 +23,18 @@ def style_df(df):
     COLS_REDS = ['risk_cont_pct']
     COLS_BLUES = ['alpha_risk_contribution']
 
-    fmt = {}
+    styler = df.style
 
-    # integers
-    fmt.update({c: '{:,.0f}'.format for c in COLS_INT if c in df.columns})
+    # colors
+    styler = styler.background_gradient(cmap="Reds", subset=[c for c in COLS_REDS if c in df])
+    styler = styler.background_gradient(cmap="Blues", subset=[c for c in COLS_BLUES if c in df])
 
-    # 1-decimal floats
-    fmt.update({c: '{:,.1f}'.format for c in COLS_ROUND_ONE if c in df.columns})
-
-    # percentages (assumed 0-1)
-    fmt.update({c: '{:.1%}'.format for c in COLS_PERCENTAGE if c in df.columns})
-
-    styler = df.style.format(fmt)
-
-    # -------- colour scales --------
-    if any(c in df.columns for c in COLS_REDS):
-        styler = styler.background_gradient(cmap="Reds", subset=[c for c in COLS_REDS if c in df.columns])
-    if any(c in df.columns for c in COLS_BLUES):
-        styler = styler.background_gradient(cmap="Blues", subset=[c for c in COLS_BLUES if c in df.columns])
+    # numeric
+    styler = styler.format({
+        **{c: '{:,.0f}'.format for c in COLS_INT if c in df},
+        **{c: '{:,.1f}'.format for c in COLS_ROUND_ONE if c in df},
+        **{c: '{:.1%}'.format for c in COLS_PERCENTAGE if c in df}
+    })
 
     return styler
 
