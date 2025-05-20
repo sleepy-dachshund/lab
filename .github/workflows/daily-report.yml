@@ -1,5 +1,8 @@
 name: Daily Update  # The name displayed in GitHub UI
 
+permissions:
+  contents: write 
+
 on:  # Defines when this workflow will run
   schedule:  # Runs on a schedule
     - cron: '0 8 * * 1,6'    # 3:00 AM Eastern (8:00 UTC) on Mondays and Saturdays
