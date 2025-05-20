@@ -732,7 +732,7 @@ def send_email_report(
 ======================================================================================================= '''
 
 
-def main(symbol_list: List[str], market_indices: List[str], update_name: str) -> pd.DataFrame:
+def main(symbol_list: List[str], market_indices: List[str], update_name: str, save_price_data_csv: bool = True) -> pd.DataFrame:
     """
     Main function to run the analysis and generate the report.
 
@@ -916,6 +916,19 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
         if sector not in SECTOR_COLORS:
             logger.warning(f"Sector '{sector}' not in SECTOR_COLORS map. Assigning default color.")
             SECTOR_COLORS[sector] = SECTOR_COLORS.get('OTHER', 'grey')
+
+    if save_price_data_csv:
+        try:  # Try to save price data locally (for local development)
+            logger.info("Saving price data to CSV...")
+            symbol_type = update_name.split(' ')[1].lower()
+            price_df = pd.DataFrame()
+            for symbol in active_symbols:
+                if symbol in price_data:
+                    price_df[symbol] = price_data[symbol]['adj_close']
+            directory_path = 'data'
+            price_df.to_csv(os.path.join(directory_path, f'price_data_{symbol_type}.csv'))
+        except Exception as e:
+            logger.debug(f"Failed to save price data to CSV: {e}", exc_info=True)
 
     # --- Calculations ---
     calculated_metrics: Dict[str, pd.Series] = {}
@@ -1213,20 +1226,21 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str) ->
 if __name__ == "__main__":
 
     # Index ETFs to include in the daily update
-    major_indices = ['SPY', 'QQQ', 'IWM', 'QMOM', 'AGG', 'GLD']
+    major_indices = ['SPY', 'QQQ', 'IWM', 'QMOM', 'AGG', 'TLT', 'GLD', 'IBIT']
 
     # Stocks to cover in the daily update(s)
     coverage_set = ['AMZN', 'GOOG', 'META', 'TSM', 'NVDA', 'BRK-B', 'JNJ',
                     'MELI', 'MSFT', 'SE',
                     'NFLX', 'AAPL', 'ASML',
-                    'PM', 'ABT', 'INTC', 'TSLA', 'CDNS', 'PG', 'CAT']
-    watchlist_set = ['TTWO', 'CRWD', 'DE', 'KR', 'UNH', 'ALK', 'DD',
+                    'PM', 'ABT', 'CDNS', 'PG', 'CAT']
+    watchlist_set = ['TTWO', 'TSLA', 'CRWD', 'DE', 'KR', 'UNH', 'ALK', 'DD',
                      'AMT', 'CCI',
                      'LMT', 'NOC', 'LHX', 'HII',
                      'V', 'AXP', 'JPM',
                      'GILD', 'MRK',
                      'COP', 'XOM',
-                     'COST', 'NKE', 'LLY', 'VZ']
+                     'COST', 'NKE', 'LLY', 'VZ',
+                     'ATOM']
 
     # todo: add sector ETFs to data pull, market adjust their returns, and use to adjust stock returns
     # todo: for coverage set, add ability to input dictionary w/ share count for each stock to calculate portfolio return
