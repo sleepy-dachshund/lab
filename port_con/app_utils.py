@@ -46,21 +46,19 @@ def style_df(df):
 
 # ---------- builders ----------
 def portfolio_overview(prm) -> pd.DataFrame:
-    df = pd.DataFrame({
-        'Names': [prm.num_names],
-        'ENP': [prm.port_enp],
-        'Breadth': [prm.port_enp / prm.num_names],
-        'GMV ($mm)': [prm.port_gmv / 1e6],
-        'NMV ($mm)': [prm.port_nmv / 1e6],
-        'Total Vol ($mm)': [prm.port_vol_total_dollar / 1e6],
-        'Total Vol (% GMV)': [prm.port_vol_total_pct],
-        'Alpha Risk Contribution': [prm.port_risk_contribution_alpha],
-        'Alpha Risk (Long)': [prm.port_alpha_risk_contribution_long],
-        'Alpha Risk (Short)': [prm.port_alpha_risk_contribution_short],
-        'Factor Risk Contribution': [prm.port_risk_contribution_factor]
-    }).T
-    df.columns = ['Value']
-    return df
+    return pd.DataFrame([{
+        'Names':                     prm.num_names,
+        'ENP':                       prm.port_enp,
+        'Breadth':                   prm.port_enp / prm.num_names,
+        'GMV ($mm)':                 prm.port_gmv / 1e6,
+        'NMV ($mm)':                 prm.port_nmv / 1e6,
+        'Total Vol ($mm)':           prm.port_vol_total_dollar / 1e6,
+        'Total Vol (% GMV)':         prm.port_vol_total_pct,
+        'Alpha Risk Contribution':   prm.port_risk_contribution_alpha,
+        'Alpha Risk (Long)':         prm.port_alpha_risk_contribution_long,
+        'Alpha Risk (Short)':        prm.port_alpha_risk_contribution_short,
+        'Factor Risk Contribution':  prm.port_risk_contribution_factor
+    }])
 
 def portfolio_holdings(prm, df_factor_loadings) -> pd.DataFrame:
     df_ind = (df_factor_loadings
