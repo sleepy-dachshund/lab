@@ -45,28 +45,12 @@ jobs:  # Contains all the jobs that will run in this workflow
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: python daily_ticker_update.py
 
-# Example Second Job to Run on Same Schedule
-#  another-script: # New job name
-#    runs-on: ubuntu-latest
-#    needs: generate-report  # Optional: Makes this job wait for the first one to complete
-#
-#    steps:
-#      - name: Checkout repository
-#        uses: actions/checkout@v3
-#
-#      - name: Set up Python
-#        uses: actions/setup-python@v4
-#        with:
-#          python-version: '3.11'
-#
-#      - name: Install dependencies
-#        working-directory: ./daily_update
-#        run: |
-#          python -m pip install --upgrade pip
-#          pip install -r requirements.txt
-#
-#      - name: Run another script
-#        working-directory: ./another_directory
-#        env:
-#          SOME_API_KEY: ${{ secrets.SOME_API_KEY }}
-#        run: python another_script.py
+      - name: Commit updated CSVs
+        run: |
+          git config user.name  "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+      
+          # stage everything in data/
+          git add data/*.csv
+          git commit -m "auto: refresh data"  || echo "no changes"   # skip if no changes
+          git push
