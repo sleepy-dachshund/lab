@@ -4,25 +4,13 @@ COLS_HOLD = ['industry', 'side', 'gmv', 'mv', 'weight',
              'alpha_risk_contribution', 'position_alpha_vol', 'stock_alpha_vol']
 COLS_FACTOR = ['factor_group', 'side', 'factor_vol_bps', 'risk_cont_pct']
 
-COLS_PERCENTAGE = ['Breadth', 'Total Vol (% GMV)',
-                   'Alpha Risk Contribution', 'Alpha Risk (Long)',
-                   'Alpha Risk (Short)', 'Factor Risk Contribution',
-                   'weight', 'alpha_risk_contribution',
-                   'stock_alpha_vol', 'risk_cont_pct', 'pct_gmv']
-
-COLS_INT       = ['Names']
-
-COLS_ROUND_ONE = ['ENP', 'GMV ($mm)', 'NMV ($mm)',
-                  'Total Vol ($mm)', 'gmv', 'nmv',
-                  'position_alpha_vol', 'factor_vol_bps']
-
 def style_df(df):
     """Return a Styler with sensible numeric formatting."""
     COLS_PERCENTAGE = ['Breadth', 'Total Vol (% GMV)',
                        'Alpha Risk Contribution', 'Alpha Risk (Long)',
                        'Alpha Risk (Short)', 'Factor Risk Contribution',
                        'weight', 'alpha_risk_contribution',
-                       'stock_alpha_vol', 'risk_cont_pct']
+                       'stock_alpha_vol', 'risk_cont_pct', 'pct_gmv']
 
     COLS_INT = ['Names']
 
