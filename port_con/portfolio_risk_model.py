@@ -136,7 +136,7 @@ class PortfolioRiskModel:
             self.port_risk_model_df.mv < 0, 'alpha_risk_contribution'].sum()
 
         self.port_risk_model_df['side'] = np.where(self.port_risk_model_df['mv'] > 0, 'long', 'short')
-        self.port_risk_model_df['alpha_risk_contribution'] = self.port_risk_model_df['alpha_risk_contribution'] * 100
+        self.port_risk_model_df['alpha_risk_contribution'] = self.port_risk_model_df['alpha_risk_contribution']
         self.port_risk_model_df.sort_values('alpha_risk_contribution', ascending=False, inplace=True)
 
     def _gen_factor_risk(self):
@@ -218,7 +218,7 @@ class PortfolioRiskModel:
             covar_matrix=self.covar_array,
             total_vol=self.port_vol_total_dollar
         )
-        self.port_factor_risk_contribution_df = (self.port_factor_risk_contribution * 100).to_frame(name='risk_cont_pct').copy()
+        self.port_factor_risk_contribution_df = self.port_factor_risk_contribution.to_frame(name='risk_cont_pct').copy()
         self.port_factor_risk_contribution_df['side'] = np.where(np.sign(self.factor_exp_pctgmv) == 1, 'long', 'short')
         self.port_factor_risk_contribution_df['factor_vol_bps'] = self.factor_vol_pctgmv * 10000
 
