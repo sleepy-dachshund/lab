@@ -8,7 +8,7 @@ COLS_PERCENTAGE = ['Breadth', 'Total Vol (% GMV)',
                    'Alpha Risk Contribution', 'Alpha Risk (Long)',
                    'Alpha Risk (Short)', 'Factor Risk Contribution',
                    'weight', 'alpha_risk_contribution',
-                   'stock_alpha_vol', 'risk_cont_pct']
+                   'stock_alpha_vol', 'risk_cont_pct', 'pct_gmv']
 
 COLS_INT       = ['Names']
 
