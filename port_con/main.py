@@ -3,6 +3,16 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+COLS_PERCENTAGE = ['Breadth', 'Total Vol (% GMV)',
+                   'Alpha Risk Contribution', 'Alpha Risk (Long)', 'Alpha Risk (Short)',
+                   'Factor Risk Contribution',
+                   'weight', 'alpha_risk_contribution', 'stock_alpha_vol',
+                   'risk_cont_pct']
+COLS_INT = ['Names']
+COLS_ROUND_ONE = ['ENP', 'GMV ($mm)', 'NMV ($mm)', 'Total Vol ($mm)',
+                  'gmv', 'nmv', 'position_alpha_vol',
+                  'factor_vol_bps']
+
 from portfolio_risk_model import gen_random_data, PortfolioRiskModel
 
 # # Set page configuration
@@ -32,11 +42,11 @@ with left:
             'GMV ($mm)': [prm.port_gmv / 1e6],
             'NMV ($mm)': [prm.port_nmv / 1e6],
             'Total Vol ($mm)': [prm.port_vol_total_dollar / 1e6],
-            'Total Vol (% GMV)': [prm.port_vol_total_pct * 100],
-            'Alpha Risk Contribution': [prm.port_risk_contribution_alpha * 100],
-            'Alpha Risk (Long)': [prm.port_alpha_risk_contribution_long * 100],
-            'Alpha Risk (Short)': [prm.port_alpha_risk_contribution_short * 100],
-            'Factor Risk Contribution': [prm.port_risk_contribution_factor * 100]}
+            'Total Vol (% GMV)': [prm.port_vol_total_pct],
+            'Alpha Risk Contribution': [prm.port_risk_contribution_alpha],
+            'Alpha Risk (Long)': [prm.port_alpha_risk_contribution_long],
+            'Alpha Risk (Short)': [prm.port_alpha_risk_contribution_short],
+            'Factor Risk Contribution': [prm.port_risk_contribution_factor]}
     ).T
     port_ovr.columns = ['Value']
     st.dataframe(port_ovr, use_container_width=True, height=750)
