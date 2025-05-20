@@ -46,6 +46,7 @@ jobs:  # Contains all the jobs that will run in this workflow
         run: python daily_ticker_update.py
 
       - name: Commit updated CSVs
+        working-directory: ./daily_update
         run: |
           git config user.name  "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
