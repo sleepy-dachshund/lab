@@ -17,10 +17,10 @@ st.write(f"**Risk Model:** {prm.factor_model_id}")
 st.markdown("---")
 
 # --- layout ---
-left, middle, right = st.columns([5, 3, 2])
-
 st.subheader("Portfolio Overview")
 st.dataframe(style_df(portfolio_overview(prm)))
+
+left, middle, right = st.columns([5, 3, 2])
 
 with left:
     st.subheader("Portfolio Holdings")
