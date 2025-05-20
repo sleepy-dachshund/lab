@@ -21,22 +21,19 @@ left, middle, right1, right2 = st.columns([2, 5, 3, 2])
 
 with left:
     st.subheader("Portfolio Overview")
-    st.dataframe(style_df(portfolio_overview(prm)),
-                 use_container_width=True, height=750)
+    st.dataframe(style_df(portfolio_overview(prm)))
 
 with middle:
     st.subheader("Portfolio Holdings")
     ph = portfolio_holdings(prm, df_factor_loadings)
-    st.dataframe(style_df(ph), use_container_width=True, height=750)
+    st.dataframe(style_df(ph))
 
 with right1:
     st.subheader("Factor Risk")
-    st.dataframe(style_df(factor_risk(prm, df_factor_loadings)),
-                 use_container_width=True, height=750)
+    st.dataframe(style_df(factor_risk(prm, df_factor_loadings)))
 
 with right2:
     st.subheader("Alpha Breakdown")
-    st.dataframe(style_df(alpha_breakdown(ph)),
-                 use_container_width=True, height=750)
+    st.dataframe(style_df(alpha_breakdown(ph)))
 
 st.markdown("---")
