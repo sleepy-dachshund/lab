@@ -80,16 +80,17 @@ def factor_risk(prm, df_factor_loadings) -> pd.DataFrame:
                              ascending=[False, False]))
 
 def alpha_breakdown(port_hold) -> pd.DataFrame:
-    side = (port_hold.groupby('side')['alpha_risk_contribution']
+    port_hold['pct_gmv'] = port_hold['gmv'] / port_hold['gmv'].sum()
+    side = (port_hold.groupby('side')[['pct_gmv', 'alpha_risk_contribution']]
                     .sum().rename_axis('subset').reset_index())
     side['group'] = 'Side'
 
-    ind = (port_hold.groupby('industry')['alpha_risk_contribution']
+    ind = (port_hold.groupby('industry')[['pct_gmv', 'alpha_risk_contribution']]
                    .sum().rename_axis('subset').reset_index())
     ind['group'] = 'Industry'
 
     out = (pd.concat([side, ind], ignore_index=True)
              .set_index(['group', 'subset'])
-             .sort_values(['group', 'alpha_risk_contribution'],
-                          ascending=[False, False]))
+             .sort_values(['group', 'alpha_risk_contribution', 'pct_gmv'],
+                          ascending=[False, False, False]))
     return out
