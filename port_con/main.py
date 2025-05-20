@@ -1,84 +1,42 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-
-COLS_PERCENTAGE = ['Breadth', 'Total Vol (% GMV)',
-                   'Alpha Risk Contribution', 'Alpha Risk (Long)', 'Alpha Risk (Short)',
-                   'Factor Risk Contribution',
-                   'weight', 'alpha_risk_contribution', 'stock_alpha_vol',
-                   'risk_cont_pct']
-COLS_INT = ['Names']
-COLS_ROUND_ONE = ['ENP', 'GMV ($mm)', 'NMV ($mm)', 'Total Vol ($mm)',
-                  'gmv', 'nmv', 'position_alpha_vol',
-                  'factor_vol_bps']
-
 from portfolio_risk_model import gen_random_data, PortfolioRiskModel
+from app_utils import (portfolio_overview, portfolio_holdings,
+                       factor_risk, alpha_breakdown, style_df)
 
-# # Set page configuration
 st.set_page_config(page_title="Portfolio Risk Monitor", layout="wide")
 
-# generate random example data
+# --- data / model ---
 df_port, df_factor_loadings, df_factor_covar, df_alpha_vols = gen_random_data(random_seed=832)
-
-# initialize portfolio risk model
 prm = PortfolioRiskModel(df_port, df_factor_loadings, df_factor_covar, df_alpha_vols)
 prm.model_risk()
 
-st.write(f"# Portfolio Risk Model")
-st.write("---")
-st.write(f"### Portfolio Date: {prm.portfolio_date.strftime('%Y-%m-%d')}")
-st.write(F"### Risk Model: {prm.factor_model_id}")
-st.write("---")
+# --- header ---
+st.title("Portfolio Risk Model")
+st.write(f"**Portfolio Date:** {prm.portfolio_date:%Y-%m-%d}")
+st.write(f"**Risk Model:** {prm.factor_model_id}")
+st.markdown("---")
 
+# --- layout ---
 left, middle, right1, right2 = st.columns([2, 5, 3, 2])
 
 with left:
-    st.subheader('Portfolio Overview')
-    port_ovr = pd.DataFrame(
-        {   'Names': [prm.num_names],
-            'ENP': [prm.port_enp],
-            'Breadth': [prm.port_enp / prm.num_names],
-            'GMV ($mm)': [prm.port_gmv / 1e6],
-            'NMV ($mm)': [prm.port_nmv / 1e6],
-            'Total Vol ($mm)': [prm.port_vol_total_dollar / 1e6],
-            'Total Vol (% GMV)': [prm.port_vol_total_pct],
-            'Alpha Risk Contribution': [prm.port_risk_contribution_alpha],
-            'Alpha Risk (Long)': [prm.port_alpha_risk_contribution_long],
-            'Alpha Risk (Short)': [prm.port_alpha_risk_contribution_short],
-            'Factor Risk Contribution': [prm.port_risk_contribution_factor]}
-    ).T
-    port_ovr.columns = ['Value']
-    st.dataframe(port_ovr, use_container_width=True, height=750)
+    st.subheader("Portfolio Overview")
+    st.dataframe(style_df(portfolio_overview(prm)),
+                 use_container_width=True, height=750)
 
 with middle:
-    st.subheader('Portfolio Holdings')
-    cols = ['industry', 'side', 'gmv', 'mv', 'weight', 'alpha_risk_contribution', 'position_alpha_vol', 'stock_alpha_vol']
-    port_hold = prm.port_risk_model_df.copy()
-    df_industry = df_factor_loadings.loc[(df_factor_loadings['factor_group'] == 'industry') & (df_factor_loadings['loading'] == 1), ['ticker', 'factor']].drop_duplicates().rename(columns={'factor': 'industry'})
-    port_hold = port_hold.merge(df_industry, left_on='ticker', right_on='ticker', how='left', validate='1:1').set_index('ticker')[cols]
-    st.dataframe(port_hold, use_container_width=True, height=750)
+    st.subheader("Portfolio Holdings")
+    ph = portfolio_holdings(prm, df_factor_loadings)
+    st.dataframe(style_df(ph), use_container_width=True, height=750)
 
 with right1:
-    st.subheader('Factor Risk')
-    cols = ['side', 'factor_vol_bps', 'risk_cont_pct']
-    port_fact = prm.port_factor_risk_contribution_df.copy()
-    port_fact = port_fact.merge(df_factor_loadings[['factor', 'factor_group']].drop_duplicates(), left_index=True, right_on='factor', how='left', validate='1:1')
-    cols = ['factor_group'] + cols
-    port_fact = port_fact.set_index('factor')[cols].sort_values(['factor_group', 'risk_cont_pct'], ascending=[False, False])
-    st.dataframe(port_fact, use_container_width=True, height=750)
+    st.subheader("Factor Risk")
+    st.dataframe(style_df(factor_risk(prm, df_factor_loadings)),
+                 use_container_width=True, height=750)
 
 with right2:
-    st.subheader('Alpha Breakdown')
-    alpha_side = port_hold.groupby('side')['alpha_risk_contribution'].sum().reset_index().rename(columns={'side': 'subset'})
-    alpha_side['group'] = 'Side'
-    alpha_industry = port_hold.groupby('industry')['alpha_risk_contribution'].sum().reset_index().rename(columns={'industry': 'subset'})
-    alpha_industry['group'] = 'Industry'
+    st.subheader("Alpha Breakdown")
+    st.dataframe(style_df(alpha_breakdown(ph)),
+                 use_container_width=True, height=750)
 
-    # concat the above dfs vertically
-    alpha_combined = pd.concat([alpha_side, alpha_industry], ignore_index=True)
-    cols = ['group', 'subset', 'alpha_risk_contribution']
-    alpha_combined = alpha_combined[cols].sort_values(['group', 'alpha_risk_contribution'], ascending=[False, False]).set_index(['group', 'subset'])
-    st.dataframe(alpha_combined, use_container_width=True, height=750)
-
-st.write("---")
+st.markdown("---")
