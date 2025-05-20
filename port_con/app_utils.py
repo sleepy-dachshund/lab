@@ -6,6 +6,7 @@ COLS_FACTOR = ['factor_group', 'side', 'factor_vol_bps', 'risk_cont_pct']
 
 def style_df(df):
     """Return a Styler with sensible numeric formatting."""
+    # =============== Number Formatting =============== #
     COLS_PERCENTAGE = ['Breadth', 'Total Vol (% GMV)',
                        'Alpha Risk Contribution', 'Alpha Risk (Long)',
                        'Alpha Risk (Short)', 'Factor Risk Contribution',
@@ -18,6 +19,10 @@ def style_df(df):
                       'Total Vol ($mm)', 'gmv', 'nmv',
                       'position_alpha_vol', 'factor_vol_bps']
 
+    # =============== Conditional Color Formatting =============== #
+    COLS_REDS = ['risk_cont_pct']
+    COLS_BLUES = ['alpha_risk_contribution']
+
     fmt = {}
 
     # integers
@@ -29,7 +34,15 @@ def style_df(df):
     # percentages (assumed 0-1)
     fmt.update({c: '{:.1%}'.format for c in COLS_PERCENTAGE if c in df.columns})
 
-    return df.style.format(fmt)
+    styler = df.style.format(fmt)
+
+    # -------- colour scales --------
+    if any(c in df.columns for c in COLS_REDS):
+        styler = styler.background_gradient(cmap="Reds", subset=[c for c in COLS_REDS if c in df.columns])
+    if any(c in df.columns for c in COLS_BLUES):
+        styler = styler.background_gradient(cmap="Blues", subset=[c for c in COLS_BLUES if c in df.columns])
+
+    return styler
 
 
 # ---------- builders ----------
