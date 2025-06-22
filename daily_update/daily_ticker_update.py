@@ -468,7 +468,11 @@ def plot_recent_return_heatmap(df: pd.DataFrame) -> Optional[Figure]:
     return fig
 
 
-def plot_fundamental_scatter(df: pd.DataFrame, x_metric: str, y_metric: str, sector_colors: Dict[str, str]) -> Optional[Figure]:
+def plot_fundamental_scatter(df: pd.DataFrame,
+                             x_metric: str, y_metric: str,
+                             sector_colors: Dict[str, str],
+                             clip_x_upper: float = None, clip_x_lower: float = None,
+                             clip_y_upper: float = None, clip_y_lower: float = None) -> Optional[Figure]:
     """
     Generates a scatter plot for two fundamental metrics, colored by sector.
 
@@ -495,6 +499,18 @@ def plot_fundamental_scatter(df: pd.DataFrame, x_metric: str, y_metric: str, sec
         return None
 
     plot_df = df[required_cols].dropna()
+
+    # clip x_metric values for better visualization
+    if clip_x_upper is not None:
+        plot_df[x_metric] = plot_df[x_metric].clip(upper=clip_x_upper)
+    if clip_x_lower is not None:
+        plot_df[x_metric] = plot_df[x_metric].clip(lower=clip_x_lower)
+
+    # clip y_metric values for better visualization
+    if clip_y_upper is not None:
+        plot_df[y_metric] = plot_df[y_metric].clip(upper=clip_y_upper)
+    if clip_y_lower is not None:
+        plot_df[y_metric] = plot_df[y_metric].clip(lower=clip_y_lower)
 
     # Optional: Filter outliers if necessary, e.g., based on quantiles
     # q_low = plot_df[x_metric].quantile(0.01)
@@ -1001,12 +1017,14 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str, sa
         plots['return_heatmap'] = fig_return_heatmap
 
     # Plot 3: PEGRatio vs ForwardPE
-    fig_peg_fpe = plot_fundamental_scatter(summary_data_general, 'ForwardPE', 'PEGRatio', SECTOR_COLORS)
+    fig_peg_fpe = plot_fundamental_scatter(summary_data_general, 'ForwardPE', 'PEGRatio', SECTOR_COLORS,
+                                           clip_x_upper=100.0, clip_y_upper=10.0)
     if fig_peg_fpe:
         plots['peg_vs_fpe'] = fig_peg_fpe
 
     # Plot 4: ROE vs Profit Margin
-    fig_roe_margin = plot_fundamental_scatter(summary_data_general, 'ProfitMargin', 'ReturnOnEquityTTM', SECTOR_COLORS)
+    fig_roe_margin = plot_fundamental_scatter(summary_data_general, 'ProfitMargin', 'ReturnOnEquityTTM', SECTOR_COLORS,
+                                              clip_x_lower=0.0, clip_y_lower=0.0)
     if fig_roe_margin:
         plots['roe_vs_margin'] = fig_roe_margin
 
@@ -1018,7 +1036,8 @@ def main(symbol_list: List[str], market_indices: List[str], update_name: str, sa
          plots['correlation_heatmap'] = fig_corr_heatmap
 
     # Plot 6: PCF vs CapEx/Revenue
-    fig_pcf_capex = plot_fundamental_scatter(summary_data_general, 'TrailingPCF', 'CapExShareCF', SECTOR_COLORS)
+    fig_pcf_capex = plot_fundamental_scatter(summary_data_general, 'TrailingPCF', 'CapExShareCF', SECTOR_COLORS,
+                                             clip_x_upper=100.0)
     if fig_pcf_capex:
         plots['pcf_vs_capex'] = fig_pcf_capex
 
@@ -1241,6 +1260,16 @@ if __name__ == "__main__":
                      'COP', 'XOM',
                      'COST', 'NKE', 'LLY', 'VZ',
                      'ATOM']
+    robotics_set = ['AEVA', 'ALGM', 'ALNT', 'AMBA', 'AME', 'APH', 'ADI', 'APTV',
+                    'CDNS', 'CSCO', 'CGNX', 'CW', 'DAN', 'DE', 'DCO', 'HSAI', 'INFY',
+                    'MCHP', 'MOG-A', 'NOK', 'NOVT', 'NVDA', 'ON', 'OUST', 'PH', 'PONY',
+                    'RBC', 'RRX', 'ROK', 'ST', 'SERV', 'STM', 'SYM', 'TEL', 'TSLA',
+                    'TXN', 'TKR', 'VPG', 'XPEV']
+    ai_set = ['AMD', 'GOOG', 'AAOI', 'ANET', 'TEAM', 'ADP', 'CVNA', 'CLS', 'CIEN',
+              'CSCO', 'NET', 'COHR', 'CSGP', 'BASE', 'CRWD', 'DDOG', 'EFX', 'FFIV',
+              'FICO', 'FIS', 'GTLB', 'GWRE', 'HUBS', 'IBM', 'INTU', 'KVYO', 'LDOS',
+              'MELI', 'MU', 'MNDY', 'MSCI', 'NFLX', 'PEGA', 'RELX', 'HOOD', 'RBRK',
+              'SPGI', 'CRM', 'SNOW', 'SRAD', 'TEM', 'TWLO', 'VERX', 'VRT', 'WRBY', 'WDAY']
 
     # todo: add sector ETFs to data pull, market adjust their returns, and use to adjust stock returns
     # todo: for coverage set, add ability to input dictionary w/ share count for each stock to calculate portfolio return
@@ -1251,5 +1280,11 @@ if __name__ == "__main__":
 
     logger.info("Running analysis for Watchlist Set...")
     watchlist_df = main(symbol_list=watchlist_set, market_indices=major_indices, update_name="Daily Watchlist Update")
+
+    logger.info("Running analysis for Robotics Set...")
+    robotics_df = main(symbol_list=robotics_set, market_indices=major_indices, update_name="Robotics Basket Update")
+
+    logger.info("Running analysis for AI Set...")
+    ai_df = main(symbol_list=ai_set, market_indices=major_indices, update_name="Dynamic AI Basket Update")
 
     logger.info("Script execution finished.")
