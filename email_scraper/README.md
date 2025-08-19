@@ -39,6 +39,17 @@ cp .env
 # Edit .env with your credentials
 ```
 
+.env example:
+```angular2html
+# Email Configuration
+EMAIL_ADDRESS=your_email@gmail.com
+EMAIL_APP_PASSWORD=abcd efgh ijkl mnop
+
+# API Keys (choose one)
+# GEMINI_API_KEY=your-gemini-api-key-here
+CLAUDE_API_KEY=your_claude_api_key_here
+```
+
 ### 2. Configure Gmail
 
 1. Enable 2-factor authentication on your Gmail account
