@@ -16,3 +16,5 @@ port_con/example_data.xlsx
 *.parquet
 port_con/factor_covar.csv
 port_con/factor_loadings.csv
+.DS_Store
+.DS_Store
