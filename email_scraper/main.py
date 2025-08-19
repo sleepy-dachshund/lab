@@ -5,7 +5,7 @@ import sys
 from datetime import datetime, timedelta
 from typing import Optional
 
-from config import load_config_from_env, WEEKLY_NEWSLETTER_CONFIG, MONTHLY_REPORT_CONFIG
+from config import load_config_from_env, WEEKLY_NEWSLETTER_CONFIG, MONTHLY_REPORT_CONFIG, DAILY_DIGEST_CONFIG
 from gmail_client import GmailClient
 from summarizer import EmailSummarizer
 
@@ -31,13 +31,16 @@ def update_config_for_preset(config, preset_name: Optional[str] = None):
     
     Args:
         config: EmailConfig object to update
-        preset_name: Name of preset ('weekly', 'monthly', or None)
+        preset_name: Name of preset ('weekly', 'monthly', 'daily', or None)
     """
     if preset_name == 'weekly':
         for key, value in WEEKLY_NEWSLETTER_CONFIG.items():
             setattr(config, key, value)
     elif preset_name == 'monthly':
         for key, value in MONTHLY_REPORT_CONFIG.items():
+            setattr(config, key, value)
+    elif preset_name == 'daily':
+        for key, value in DAILY_DIGEST_CONFIG.items():
             setattr(config, key, value)
 
 
@@ -50,13 +53,12 @@ def main():
         # Load configuration from environment
         logger.info("Loading configuration from environment...")
         config = load_config_from_env()
-
-        config.include_senders = ['email@stratechery.com']
         
         # Optional: Apply preset configuration
-        # Uncomment and modify one of these lines for preset configs:
-        # update_config_for_preset(config, 'weekly')
-        # update_config_for_preset(config, 'monthly')
+        # Uncomment one of these lines to use preset configs from control.py:
+        update_config_for_preset(config, 'weekly')    # Uses WEEKLY_NEWSLETTER_PRESET
+        # update_config_for_preset(config, 'monthly')   # Uses MONTHLY_REPORT_PRESET  
+        # update_config_for_preset(config, 'daily')     # Uses DAILY_DIGEST_PRESET
         
         logger.info(f"Configuration loaded: {config.lookback_days} days, {config.summary_level} level, {config.llm_provider} provider")
         

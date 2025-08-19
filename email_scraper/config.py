@@ -1,10 +1,11 @@
 """Configuration module for email summarizer application."""
 
 from typing import List, Literal, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import control
 
 # Load environment variables from .env file
 load_dotenv()
@@ -33,24 +34,24 @@ class EmailConfig:
     email_address: str
     app_password: str
     
-    # Selection criteria
-    lookback_days: int = 7
-    include_senders: Optional[List[str]] = None
-    exclude_senders: Optional[List[str]] = None
-    subject_keywords: Optional[List[str]] = None
+    # Selection criteria (loaded from control.py)
+    lookback_days: int = control.LOOKBACK_DAYS
+    include_senders: Optional[List[str]] = field(default_factory=lambda: control.INCLUDE_SENDERS)
+    exclude_senders: Optional[List[str]] = field(default_factory=lambda: control.EXCLUDE_SENDERS)
+    subject_keywords: Optional[List[str]] = field(default_factory=lambda: control.SUBJECT_KEYWORDS)
     
-    # Summary configuration
-    summary_level: Literal['sender', 'day', 'week'] = 'sender'
-    max_emails_per_summary: int = 50
+    # Summary configuration (loaded from control.py)
+    summary_level: Literal['sender', 'day', 'week'] = control.SUMMARY_LEVEL
+    max_emails_per_summary: int = control.MAX_EMAILS_PER_SUMMARY
     
     # LLM configuration
     llm_provider: Literal['gemini', 'claude'] = 'gemini'
     api_key: str = None
-    summary_style: str = "concise bullet points"
+    summary_style: str = control.SUMMARY_STYLE
     
-    # Output configuration
-    send_summary_to: Optional[str] = None
-    summary_subject_prefix: str = "Email Summary"
+    # Output configuration (loaded from control.py)
+    send_summary_to: Optional[str] = control.SEND_SUMMARY_TO
+    summary_subject_prefix: str = control.SUMMARY_SUBJECT_PREFIX
 
 
 def load_config_from_env() -> EmailConfig:
@@ -70,18 +71,29 @@ def load_config_from_env() -> EmailConfig:
     if not app_password:
         raise ValueError("EMAIL_APP_PASSWORD environment variable is required")
     
-    # Determine LLM provider and API key
+    # Determine LLM provider and API key based on control.py preference
     gemini_key = os.getenv('GEMINI_API_KEY')
     claude_key = os.getenv('CLAUDE_API_KEY')
     
-    if gemini_key:
-        llm_provider = 'gemini'
-        api_key = gemini_key
-    elif claude_key:
+    # Use control.py preference to determine provider
+    if control.PREFERRED_AI_PROVIDER == 'claude' and claude_key:
         llm_provider = 'claude'
         api_key = claude_key
+    elif control.PREFERRED_AI_PROVIDER == 'gemini' and gemini_key:
+        llm_provider = 'gemini'
+        api_key = gemini_key
+    elif control.PREFERRED_AI_PROVIDER == 'auto':
+        # Auto mode: prefer Claude if available, fallback to Gemini
+        if claude_key:
+            llm_provider = 'claude'
+            api_key = claude_key
+        elif gemini_key:
+            llm_provider = 'gemini'
+            api_key = gemini_key
+        else:
+            raise ValueError("Either GEMINI_API_KEY or CLAUDE_API_KEY environment variable is required")
     else:
-        raise ValueError("Either GEMINI_API_KEY or CLAUDE_API_KEY environment variable is required")
+        raise ValueError(f"Invalid AI provider preference: {control.PREFERRED_AI_PROVIDER} or missing API key")
     
     return EmailConfig(
         email_address=email_address,
@@ -91,17 +103,7 @@ def load_config_from_env() -> EmailConfig:
     )
 
 
-# Example configurations for common use cases
-WEEKLY_NEWSLETTER_CONFIG = {
-    'lookback_days': 7,
-    'summary_level': 'sender',
-    'summary_style': 'concise bullet points highlighting key topics and actionable items',
-    'summary_subject_prefix': 'Weekly Newsletter Summary'
-}
-
-MONTHLY_REPORT_CONFIG = {
-    'lookback_days': 30,
-    'summary_level': 'week',
-    'summary_style': 'weekly digest format with key themes and important updates',
-    'summary_subject_prefix': 'Monthly Email Report'
-}
+# Preset configurations (loaded from control.py)
+WEEKLY_NEWSLETTER_CONFIG = control.WEEKLY_NEWSLETTER_PRESET
+MONTHLY_REPORT_CONFIG = control.MONTHLY_REPORT_PRESET
+DAILY_DIGEST_CONFIG = control.DAILY_DIGEST_PRESET

@@ -56,3 +56,19 @@
 2025-08-19 07:37:24,965 - __main__ - INFO - Sending summary to bbmcnair1@gmail.com...
 2025-08-19 07:37:26,418 - gmail_client - INFO - Email sent successfully to bbmcnair1@gmail.com
 2025-08-19 07:37:26,418 - __main__ - INFO - Email summary sent successfully!
+2025-08-19 09:38:32,361 - __main__ - INFO - Loading configuration from environment...
+2025-08-19 09:38:32,362 - __main__ - INFO - Configuration loaded: 7 days, sender level, claude provider
+2025-08-19 09:38:32,362 - __main__ - INFO - Initializing Gmail client...
+2025-08-19 09:38:32,362 - __main__ - INFO - Initializing email summarizer...
+2025-08-19 09:38:32,383 - __main__ - INFO - Fetching emails from 2025-08-12 to 2025-08-19
+2025-08-19 09:38:32,907 - gmail_client - INFO - Connected to IMAP for bbmcnair1@gmail.com
+2025-08-19 09:38:33,727 - gmail_client - INFO - IMAP search: SINCE 12-Aug-2025 BEFORE 20-Aug-2025 (FROM "email@stratechery.com")
+2025-08-19 09:38:34,034 - gmail_client - INFO - Found 5 emails
+2025-08-19 09:38:35,731 - gmail_client - INFO - Successfully fetched 5 emails
+2025-08-19 09:38:36,025 - __main__ - INFO - Found 5 emails to summarize
+2025-08-19 09:38:36,025 - __main__ - INFO - Generating summary...
+2025-08-19 09:38:36,025 - summarizer - INFO - Summarizing 5 emails with level 'sender'
+2025-08-19 09:38:47,372 - httpx - INFO - HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2025-08-19 09:38:47,383 - __main__ - INFO - Sending summary to bbmcnair1@gmail.com...
+2025-08-19 09:38:49,313 - gmail_client - INFO - Email sent successfully to bbmcnair1@gmail.com
+2025-08-19 09:38:49,314 - __main__ - INFO - Email summary sent successfully!

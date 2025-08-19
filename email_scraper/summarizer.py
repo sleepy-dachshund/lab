@@ -8,6 +8,7 @@ from collections import defaultdict, OrderedDict
 
 from config import EmailConfig
 from gmail_client import EmailData
+import control
 
 try:
     import google.generativeai as genai
@@ -56,7 +57,7 @@ class GeminiProvider(BaseLLMProvider):
         
         try:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-pro')
+            self.model = genai.GenerativeModel(control.GEMINI_MODEL)
             self.logger = logging.getLogger(__name__)
         except Exception as e:
             raise Exception(f"Failed to configure Gemini: {e}")
@@ -113,7 +114,7 @@ class ClaudeProvider(BaseLLMProvider):
         """
         try:
             response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=control.CLAUDE_MODEL,
                 max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -277,21 +278,19 @@ class EmailSummarizer:
             str: Formatted prompt for LLM
         """
         email_content = []
-        for email in emails[:10]:  # Limit to prevent token overflow
+        for email in emails[:control.MAX_EMAILS_PER_SENDER]:  # Limit to prevent token overflow
             email_content.append(f"Subject: {email.subject}")
             email_content.append(f"Date: {email.date.strftime('%Y-%m-%d %H:%M')}")
             # Truncate very long bodies
-            body_preview = email.body[:1000] + "..." if len(email.body) > 1000 else email.body
+            body_preview = email.body[:control.EMAIL_BODY_PREVIEW_LENGTH] + "..." if len(email.body) > control.EMAIL_BODY_PREVIEW_LENGTH else email.body
             email_content.append(f"Body: {body_preview}")
             email_content.append("---")
         
-        return f"""Please create a summary of these emails from {sender} in {self.config.summary_style}. 
-Focus on key topics, important updates, and actionable items.
-
-Emails:
-{chr(10).join(email_content)}
-
-Summary:"""
+        return control.SENDER_SUMMARY_PROMPT.format(
+            sender=sender,
+            style=self.config.summary_style,
+            email_content=chr(10).join(email_content)
+        )
     
     def _create_day_prompt(self, day, emails: List[EmailData]) -> str:
         """Create prompt for day-based summarization.
@@ -308,17 +307,15 @@ Summary:"""
             email_content.append(f"From: {self._extract_email_address(email.sender)}")
             email_content.append(f"Subject: {email.subject}")
             # Truncate very long bodies
-            body_preview = email.body[:800] + "..." if len(email.body) > 800 else email.body
+            body_preview = email.body[:control.EMAIL_BODY_PREVIEW_LENGTH] + "..." if len(email.body) > control.EMAIL_BODY_PREVIEW_LENGTH else email.body
             email_content.append(f"Body: {body_preview}")
             email_content.append("---")
         
-        return f"""Please create a summary of these emails from {day.strftime('%B %d, %Y')} in {self.config.summary_style}.
-Group by themes and highlight important information.
-
-Emails:
-{chr(10).join(email_content)}
-
-Summary:"""
+        return control.DAY_SUMMARY_PROMPT.format(
+            date=day.strftime('%B %d, %Y'),
+            style=self.config.summary_style,
+            email_content=chr(10).join(email_content)
+        )
     
     def _create_week_prompt(self, emails: List[EmailData], date_range: str) -> str:
         """Create prompt for weekly summarization.
@@ -331,24 +328,20 @@ Summary:"""
             str: Formatted prompt for LLM
         """
         email_content = []
-        for email in emails[:20]:  # Limit to prevent token overflow
+        for email in emails[:control.MAX_EMAILS_PER_SUMMARY]:  # Limit to prevent token overflow
             email_content.append(f"From: {self._extract_email_address(email.sender)}")
             email_content.append(f"Subject: {email.subject}")
             email_content.append(f"Date: {email.date.strftime('%Y-%m-%d')}")
             # Truncate very long bodies
-            body_preview = email.body[:600] + "..." if len(email.body) > 600 else email.body
+            body_preview = email.body[:control.EMAIL_BODY_PREVIEW_LENGTH] + "..." if len(email.body) > control.EMAIL_BODY_PREVIEW_LENGTH else email.body
             email_content.append(f"Body: {body_preview}")
             email_content.append("---")
         
-        return f"""Please create a comprehensive weekly summary of these emails in {self.config.summary_style}.
-Organize by key themes, important updates, and actionable items. Focus on the most important information.
-
-Date Range: {date_range}
-
-Emails:
-{chr(10).join(email_content)}
-
-Summary:"""
+        return control.WEEK_SUMMARY_PROMPT.format(
+            date_range=date_range,
+            style=self.config.summary_style,
+            email_content=chr(10).join(email_content)
+        )
     
     def _extract_email_address(self, sender: str) -> str:
         """Extract email address from sender field.
