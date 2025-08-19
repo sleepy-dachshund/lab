@@ -340,3 +340,5 @@ if __name__ == '__main__':
     print(f'\nPortfolio Factor Risk Contribution: {prm.port_risk_contribution_factor * 100:.2f}%')
     print(f'Top 5 Contributors to Factor Risk: '
           f'\n{prm.port_factor_risk_contribution_df.sort_values("risk_cont_pct", ascending=False).head()}')
+
+    df_factor_covar.to_csv('factor_covar.csv', index=True)

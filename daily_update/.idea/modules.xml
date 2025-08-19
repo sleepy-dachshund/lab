@@ -2,7 +2,10 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../../commodity/.idea/commodity.iml" filepath="$PROJECT_DIR$/../../commodity/.idea/commodity.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/daily_update.iml" filepath="$PROJECT_DIR$/.idea/daily_update.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../fantasy_football/.idea/fantasy_football.iml" filepath="$PROJECT_DIR$/../../fantasy_football/.idea/fantasy_football.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../port_con/.idea/port_con.iml" filepath="$PROJECT_DIR$/../port_con/.idea/port_con.iml" />
     </modules>
   </component>
 </project>

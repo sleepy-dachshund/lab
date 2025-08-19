@@ -1279,7 +1279,7 @@ if __name__ == "__main__":
     coverage_df = main(symbol_list=coverage_set, market_indices=major_indices, update_name="Daily Coverage Update")  # update_name is just the subject line of the email
 
     day_of_week_int = datetime.today().weekday()
-    
+
     if day_of_week_int in [0, 5]:
         logger.info("Running analysis for Watchlist Set...")
         watchlist_df = main(symbol_list=watchlist_set, market_indices=major_indices, update_name="Daily Watchlist Update")

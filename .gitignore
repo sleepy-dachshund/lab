@@ -12,3 +12,5 @@ port_con/risk_model_example.xlsx
 regression/scratch.py
 daily_update/__pycache__/config.cpython-311.pyc
 .idea/inspectionProfiles/Project_Default.xml
+port_con/example_data.xlsx
+*.parquet
