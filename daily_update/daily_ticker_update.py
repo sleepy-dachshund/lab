@@ -1274,17 +1274,12 @@ if __name__ == "__main__":
     logger.info("Running analysis for Coverage Set...")
     coverage_df = main(symbol_list=coverage_set, market_indices=major_indices, update_name="Daily Coverage Update")  # update_name is just the subject line of the email
 
-    day_of_week_int = datetime.today().weekday()
+    logger.info("Running analysis for Watchlist Set...")
+    watchlist_df = main(symbol_list=watchlist_set, market_indices=major_indices, update_name="Daily Watchlist Update")
 
-    if day_of_week_int in [0, 5]:
-        logger.info("Running analysis for Watchlist Set...")
-        watchlist_df = main(symbol_list=watchlist_set, market_indices=major_indices, update_name="Daily Watchlist Update")
-
-    if day_of_week_int in [1, 3, 5]:
+    if datetime.today().weekday() == 5:
         logger.info("Running analysis for Robotics Set...")
         robotics_df = main(symbol_list=robotics_set, market_indices=major_indices, update_name="Robotics Basket Update")
-
-    if day_of_week_int in [2, 4, 5]:
         logger.info("Running analysis for AI Set...")
         ai_df = main(symbol_list=ai_set, market_indices=major_indices, update_name="Dynamic AI Basket Update")
 
