@@ -1248,13 +1248,13 @@ if __name__ == "__main__":
     major_indices = ['SPY', 'QQQ', 'IWM', 'QMOM', 'AGG', 'TLT', 'GLD', 'IBIT']
 
     # Stocks to cover in the daily update(s)
-    coverage_set = ['GOOG', 'TSM', 'BRK-B', 'META', 'AMZN', 'NVDA', 'ASML', 'MKL', 'MSFT', 'AAPL']
-    watchlist_set = ['PM', 'NFLX', 'SE', 'MELI', 'CDNS',
-                     'DE', 'UNP', 'GE', 'DD', 'CAT', 'UPS', 'FDX', 'WM', 'ETN', 'FAST',
-                     'LMT', 'NOC', 'LHX', 'RTX',
+    coverage_set = ['GOOG', 'TSM', 'BRK-B', 'META', 'AMZN', 'NVDA', 'ASML', 'AAPL', 'TDG', 'FANG', 'UNH']
+    watchlist_set = ['PM', 'NFLX',
+                     'DE', 'UNP', 'GE', 'CAT', 'WM', 'ETN', 'FAST',
+                     'LMT', 'RTX',
                      'V', 'AXP', 'JPM',
-                     'GILD', 'MRK', 'JNJ', 'UNH', 'LLY',
-                     'COP', 'XOM', 'OXY', 'FANG',
+                     'JNJ', 'LLY', 'ISRG',
+                     'COP', 'XOM', 'EOG',
                      'COST', 'NKE', 'WMT', 'LULU', 'ONON']
     robotics_set = ['AEVA', 'ALGM', 'ALNT', 'AMBA', 'AME', 'APH', 'ADI', 'APTV',
                     'CDNS', 'CSCO', 'CGNX', 'CW', 'DAN', 'DE', 'DCO', 'HSAI', 'INFY',
